@@ -3,28 +3,37 @@ import { useAuth } from '../contexts/AuthContext';
 import { db } from '../firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
 
-// Helper: Format to BRL currency
+// Helper: Format to BRL currency safely
 function formatarMoeda(valor) {
-  return (valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const v = Number(valor);
+  return (isNaN(v) ? 0 : v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-// Helper: Parse hour string (e.g. "8h30" to 8.5)
+// Helper: Parse hour string (e.g. "8h30" to 8.5) safely
 function parsarHoras(horarioStr) {
-  if (!horarioStr) return 0;
+  if (!horarioStr || typeof horarioStr !== 'string') return 0;
   const match = horarioStr.match(/(\d+)h(\d*)/);
   if (match) {
     const horas = parseInt(match[1], 10) || 0;
     const minutos = parseInt(match[2], 10) || 0;
-    return horas + minutos / 60;
+    return horas + (minutos / 60);
   }
-  return parseFloat(horarioStr) || 0;
+  const f = parseFloat(horarioStr);
+  return isNaN(f) ? 0 : f;
 }
 
-// Helper: Classify the shift based on start and end time
+// Helper: Classify the shift based on start and end time safely
 function classificarTurno(horaInicio, horaFim) {
-  if (!horaInicio || !horaFim) return 'Não Informado';
-  const [hStart] = horaInicio.split(':').map(Number);
-  const [hEnd] = horaFim.split(':').map(Number);
+  if (!horaInicio || !horaFim || typeof horaInicio !== 'string' || typeof horaFim !== 'string') {
+    return 'Não Informado';
+  }
+  const partsStart = horaInicio.split(':');
+  const partsEnd = horaFim.split(':');
+  if (partsStart.length < 2 || partsEnd.length < 2) return 'Não Informado';
+  
+  const hStart = Number(partsStart[0]);
+  const hEnd = Number(partsEnd[0]);
+  if (isNaN(hStart) || isNaN(hEnd)) return 'Não Informado';
   
   const obterNomePeriodo = (h) => {
     if (h >= 0 && h < 6) return 'Madrugada 🌙';
@@ -37,25 +46,18 @@ function classificarTurno(horaInicio, horaFim) {
   const pEnd = obterNomePeriodo(hEnd);
   
   if (pStart === pEnd) return pStart;
-  // Clean emojis for combination name
   const pStartClean = pStart.split(' ')[0];
   const pEndClean = pEnd.split(' ')[0];
   return `${pStartClean} ➔ ${pEndClean} 🌓`;
 }
 
-// Helper: Detect weekend (Saturday = 6, Sunday = 0)
+// Helper: Detect weekend safely
 function isFimDeSemana(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string' || !dateStr.includes('-')) return false;
   const d = new Date(dateStr + 'T12:00:00');
+  if (isNaN(d.getTime())) return false;
   const diaSemana = d.getDay();
   return diaSemana === 0 || diaSemana === 6;
-}
-
-// Helper: Format day of week for exhibit
-function obterDiaSemanaNome(dateStr) {
-  const d = new Date(dateStr + 'T12:00:00');
-  const opcoes = { weekday: 'long' };
-  const nome = d.toLocaleDateString('pt-BR', opcoes);
-  return nome.charAt(0).toUpperCase() + nome.slice(1);
 }
 
 export default function AnaliseTab() {
@@ -70,27 +72,38 @@ export default function AnaliseTab() {
     const unsubscribe = onSnapshot(registrosRef, (snapshot) => {
       const mapa = {};
       snapshot.forEach(docSnap => {
-        mapa[docSnap.id] = { id: docSnap.id, ...docSnap.data() };
+        if (docSnap.exists()) {
+          mapa[docSnap.id] = { id: docSnap.id, ...docSnap.data() };
+        }
       });
       setRegistrosMap(mapa);
     });
     return () => unsubscribe();
   }, [usuario]);
 
-  // ─── Generate list of available months for filter ───
+  // ─── Generate list of available months for filter safely ───
   const mesesDisponiveis = useMemo(() => {
     const chaves = Object.keys(registrosMap);
     const mesesSet = new Set();
     chaves.forEach(chave => {
-      const [ano, mes] = chave.split('-');
-      if (ano && mes) mesesSet.add(`${ano}-${mes}`);
+      if (chave && typeof chave === 'string') {
+        const parts = chave.split('-');
+        if (parts.length >= 2) {
+          const ano = parts[0];
+          const mes = parts[1];
+          // Ensure it's a valid YYYY-MM prefix
+          if (ano.length === 4 && mes.length === 2 && !isNaN(Number(ano)) && !isNaN(Number(mes))) {
+            mesesSet.add(`${ano}-${mes}`);
+          }
+        }
+      }
     });
     return Array.from(mesesSet).sort((a, b) => b.localeCompare(a));
   }, [registrosMap]);
 
-  // ─── Filtered registers array ───
+  // ─── Filtered registers array safely ───
   const registrosFiltrados = useMemo(() => {
-    const todos = Object.values(registrosMap);
+    const todos = Object.values(registrosMap).filter(r => r && r.id && typeof r.id === 'string');
     if (filtroMes === 'todos') return todos;
     return todos.filter(r => r.id.startsWith(filtroMes));
   }, [registrosMap, filtroMes]);
@@ -101,7 +114,7 @@ export default function AnaliseTab() {
     
     registrosFiltrados.forEach(r => {
       const turno = classificarTurno(r.horaInicio, r.horaFim);
-      if (turno === 'Não Informado') return; // Skip days with no shift registration
+      if (turno === 'Não Informado') return;
       
       if (!turnos[turno]) {
         turnos[turno] = {
@@ -114,19 +127,18 @@ export default function AnaliseTab() {
         };
       }
       
-      const bruto = r.totalBruto || 0;
-      const gastos = r.gastosGerais || 0;
-      const liquido = r.totalLiquido != null ? r.totalLiquido : bruto - gastos;
+      const bruto = Number(r.totalBruto) || 0;
+      const gastos = Number(r.gastosGerais) || 0;
+      const liquido = r.totalLiquido != null ? Number(r.totalLiquido) : bruto - gastos;
       const horas = parsarHoras(r.horarioRodado);
       
       turnos[turno].dias += 1;
       turnos[turno].totalLiquido += liquido;
       turnos[turno].totalBruto += bruto;
       turnos[turno].totalHoras += horas;
-      turnos[turno].totalKm += r.km || 0;
+      turnos[turno].totalKm += Number(r.km) || 0;
     });
     
-    // Calculate averages and format
     return Object.values(turnos).map(t => {
       const ganhoHora = t.totalHoras > 0 ? t.totalLiquido / t.totalHoras : 0;
       const ganhoKm = t.totalKm > 0 ? t.totalLiquido / t.totalKm : 0;
@@ -135,7 +147,7 @@ export default function AnaliseTab() {
         ganhoHora,
         ganhoKm
       };
-    }).sort((a, b) => b.ganhoHora - a.ganhoHora); // Best hourly rate first
+    }).sort((a, b) => b.ganhoHora - a.ganhoHora);
   }, [registrosFiltrados]);
 
   // ─── 2. WEEKDAY VS WEEKEND ANALYSIS ───
@@ -165,20 +177,19 @@ export default function AnaliseTab() {
       const fds = isFimDeSemana(r.id);
       const grupo = fds ? dados.fds : dados.semana;
       
-      const bruto = r.totalBruto || 0;
-      const gastos = r.gastosGerais || 0;
-      const liquido = r.totalLiquido != null ? r.totalLiquido : bruto - gastos;
+      const bruto = Number(r.totalBruto) || 0;
+      const gastos = Number(r.gastosGerais) || 0;
+      const liquido = r.totalLiquido != null ? Number(r.totalLiquido) : bruto - gastos;
       const horas = parsarHoras(r.horarioRodado);
       
       grupo.dias += 1;
       grupo.totalLiquido += liquido;
       grupo.totalBruto += bruto;
       grupo.totalHoras += horas;
-      grupo.totalKm += r.km || 0;
-      grupo.totalViagens += r.viagens || 0;
+      grupo.totalKm += Number(r.km) || 0;
+      grupo.totalViagens += Number(r.viagens) || 0;
     });
     
-    // Process averages
     const processarAverages = (g) => {
       if (g.dias === 0) return { ...g, mediaDiaria: 0, ganhoHora: 0, ganhoKm: 0, mediaViagens: 0 };
       return {
@@ -201,10 +212,11 @@ export default function AnaliseTab() {
     const combinacoes = {};
     
     registrosFiltrados.forEach(r => {
-      // Build sorted combination name (e.g. "Black + Comfort")
       let setup = 'Nenhuma Categoria';
-      if (r.categorias && r.categorias.length > 0) {
-        setup = [...r.categorias].sort().join(' + ');
+      if (r.categorias && Array.isArray(r.categorias) && r.categorias.length > 0) {
+        setup = [...r.categorias].filter(c => c && typeof c === 'string').sort().join(' + ');
+      } else if (r.categorias && typeof r.categorias === 'string') {
+        setup = r.categorias;
       }
       
       if (!combinacoes[setup]) {
@@ -218,16 +230,16 @@ export default function AnaliseTab() {
         };
       }
       
-      const bruto = r.totalBruto || 0;
-      const gastos = r.gastosGerais || 0;
-      const liquido = r.totalLiquido != null ? r.totalLiquido : bruto - gastos;
+      const bruto = Number(r.totalBruto) || 0;
+      const gastos = Number(r.gastosGerais) || 0;
+      const liquido = r.totalLiquido != null ? Number(r.totalLiquido) : bruto - gastos;
       const horas = parsarHoras(r.horarioRodado);
       
       combinacoes[setup].dias += 1;
       combinacoes[setup].totalLiquido += liquido;
       combinacoes[setup].totalBruto += bruto;
       combinacoes[setup].totalHoras += horas;
-      combinacoes[setup].totalKm += r.km || 0;
+      combinacoes[setup].totalKm += Number(r.km) || 0;
     });
     
     return Object.values(combinacoes).map(c => {
@@ -296,10 +308,18 @@ export default function AnaliseTab() {
             >
               <option value="todos">📅 Todo o Histórico</option>
               {mesesDisponiveis.map(m => {
-                const [ano, mes] = m.split('-');
-                const dataObjeto = new Date(Number(ano), Number(mes) - 1, 15);
-                const label = dataObjeto.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-                return <option key={m} value={m}>{label.charAt(0).toUpperCase() + label.slice(1)}</option>;
+                if (!m || typeof m !== 'string' || !m.includes('-')) return null;
+                const parts = m.split('-');
+                const ano = Number(parts[0]);
+                const mes = Number(parts[1]);
+                if (isNaN(ano) || isNaN(mes)) return null;
+                
+                const dataObjeto = new Date(ano, mes - 1, 15);
+                if (isNaN(dataObjeto.getTime())) return null;
+                
+                const labelRaw = dataObjeto.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                const label = labelRaw.charAt(0).toUpperCase() + labelRaw.slice(1);
+                return <option key={m} value={m}>{label}</option>;
               })}
             </select>
           </div>
