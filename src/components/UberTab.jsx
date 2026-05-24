@@ -117,6 +117,7 @@ export default function UberTab() {
   const [viagens, setViagens] = useState('');
   const [horarioRodado, setHorarioRodado] = useState('');
   const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState(null);
 
   // Caixinhas config states
   const [pctEmergencia, setPctEmergencia] = useState(10);
@@ -325,6 +326,7 @@ export default function UberTab() {
   const salvarDia = async () => {
     if (!usuario) return;
     setSalvando(true);
+    setErro(null);
     try {
       const totalLiquido = brutoNum - gastosNum;
       const docRef = doc(db, 'usuarios', usuario.uid, 'registros', dataChave);
@@ -348,8 +350,10 @@ export default function UberTab() {
         if (registroDoDia.caixinhaContasEnviada) dados.caixinhaContasEnviada = true;
       }
       await setDoc(docRef, dados, { merge: true });
+      alert('✅ Registro diário salvo com sucesso!');
     } catch (err) {
       console.error('Erro ao salvar registro:', err);
+      setErro(err.code || err.message || 'Erro de Gravação');
     }
     setSalvando(false);
   };
@@ -536,6 +540,25 @@ export default function UberTab() {
             />
           </div>
         </div>
+        {erro && (
+          <div style={{
+            background: 'rgba(255, 107, 107, 0.15)',
+            border: '1px solid rgba(255, 107, 107, 0.25)',
+            color: '#ff6b6b',
+            padding: '14px',
+            borderRadius: '12px',
+            fontSize: '0.85rem',
+            marginBottom: '16px',
+            lineHeight: '1.5',
+            textAlign: 'left'
+          }}>
+            <strong>⚠️ Falha ao Salvar no Firebase:</strong><br />
+            {erro.includes('permission') || erro.includes('Permission') || erro.includes('permission-denied')
+              ? 'Permissão negada! Suas regras do Firestore estão bloqueando gravações na nuvem. Acesse o seu Firebase Console > Firestore Database > Rules e altere para permitir leituras e gravações para usuários autenticados.'
+              : `Erro: ${erro}. Verifique se o seu banco Firestore foi ativado ou confira a conexão de rede.`}
+          </div>
+        )}
+
         <button
           className="btn-primary btn-salvar"
           onClick={salvarDia}
