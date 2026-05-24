@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { useAuth } from './contexts/AuthContext';
 import UberTab from './components/UberTab';
+import AnaliseTab from './components/AnaliseTab';
 import DespesasFixasTab from './components/DespesasFixasTab';
 import GastosVariaveisTab from './components/GastosVariaveisTab';
 import ObservacoesTab from './components/ObservacoesTab';
 
 const TABS = [
   { id: 'uber', label: 'Uber / Ganhos', icon: '🚗' },
+  { id: 'analise', label: 'Análise', icon: '📊' },
   { id: 'despesas', label: 'Despesas Fixas', icon: '📋' },
   { id: 'gastos', label: 'Gastos Variáveis', icon: '💸' },
   { id: 'notas', label: 'Observações', icon: '📝' }
@@ -143,6 +145,7 @@ export default function App() {
   const renderTab = () => {
     switch (abaAtiva) {
       case 'uber': return <UberTab />;
+      case 'analise': return <AnaliseTab />;
       case 'despesas': return <DespesasFixasTab />;
       case 'gastos': return <GastosVariaveisTab />;
       case 'notas': return <ObservacoesTab />;

@@ -57,6 +57,8 @@ const CORES_PIZZA = {
   'Contas': '#0984e3'
 };
 
+const CATEGORIAS_DISPONIVEIS = ['UberX', 'Comfort', 'Black', '99 (App)', 'Flash', 'Moto'];
+
 function formatarMoeda(valor) {
   return (valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
@@ -116,8 +118,15 @@ export default function UberTab() {
   const [gastosGerais, setGastosGerais] = useState('');
   const [viagens, setViagens] = useState('');
   const [horarioRodado, setHorarioRodado] = useState('');
+  const [horaInicio, setHoraInicio] = useState('');
+  const [horaFim, setHoraFim] = useState('');
+  const [categoriasSelecionadas, setCategoriasSelecionadas] = useState([]);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState(null);
+
+  // Histórico state hooks
+  const [historicoExpandido, setHistoricoExpandido] = useState(false);
+  const [mesesExpandidos, setMesesExpandidos] = useState({});
 
   // Caixinhas config states
   const [pctEmergencia, setPctEmergencia] = useState(10);
@@ -206,6 +215,9 @@ export default function UberTab() {
       setGastosGerais(registroDoDia.gastosGerais != null ? String(registroDoDia.gastosGerais) : '');
       setViagens(registroDoDia.viagens != null ? String(registroDoDia.viagens) : '');
       setHorarioRodado(registroDoDia.horarioRodado || '');
+      setHoraInicio(registroDoDia.horaInicio || '');
+      setHoraFim(registroDoDia.horaFim || '');
+      setCategoriasSelecionadas(registroDoDia.categorias || []);
       setManutencaoValor(registroDoDia.manutencaoValor != null ? String(registroDoDia.manutencaoValor) : '');
     } else {
       setKm('');
@@ -213,6 +225,9 @@ export default function UberTab() {
       setGastosGerais('');
       setViagens('');
       setHorarioRodado('');
+      setHoraInicio('');
+      setHoraFim('');
+      setCategoriasSelecionadas([]);
       setManutencaoValor('');
     }
   }, [dataChave, registroDoDia]);
@@ -327,6 +342,26 @@ export default function UberTab() {
     if (!usuario) return;
     setSalvando(true);
     setErro(null);
+
+    // Calculate duration automatically from start/end times if filled
+    let duracaoRodada = horarioRodado;
+    if (horaInicio && horaFim) {
+      const [hStart, mStart] = horaInicio.split(':').map(Number);
+      let [hEnd, mEnd] = horaFim.split(':').map(Number);
+      
+      let startMinutes = hStart * 60 + mStart;
+      let endMinutes = hEnd * 60 + mEnd;
+      
+      if (endMinutes < startMinutes) {
+        endMinutes += 24 * 60; // Spans across midnight
+      }
+      
+      const diffMinutes = endMinutes - startMinutes;
+      const h = Math.floor(diffMinutes / 60);
+      const m = diffMinutes % 60;
+      duracaoRodada = `${h}h${m > 0 ? String(m).padStart(2, '0') : '00'}`;
+    }
+
     try {
       const totalLiquido = brutoNum - gastosNum;
       const docRef = doc(db, 'usuarios', usuario.uid, 'registros', dataChave);
@@ -336,7 +371,10 @@ export default function UberTab() {
         gastosGerais: gastosNum,
         totalLiquido,
         viagens: viagensNum,
-        horarioRodado: horarioRodado || '',
+        horarioRodado: duracaoRodada || '',
+        horaInicio: horaInicio || '',
+        horaFim: horaFim || '',
+        categorias: categoriasSelecionadas || [],
         manutencaoValor: brutoNum * (pctManutencao / 100),
         data: dataChave,
         atualizadoEm: serverTimestamp()
@@ -388,6 +426,14 @@ export default function UberTab() {
       await setDoc(docRef, { [campo]: valor }, { merge: true });
     } catch (err) {
       console.error('Erro ao atualizar caixinha:', err);
+    }
+  };
+
+  const toggleCategoria = (cat) => {
+    if (categoriasSelecionadas.includes(cat)) {
+      setCategoriasSelecionadas(prev => prev.filter(c => c !== cat));
+    } else {
+      setCategoriasSelecionadas(prev => [...prev, cat]);
     }
   };
 
@@ -453,6 +499,52 @@ export default function UberTab() {
       return 0;
     });
   }, [registrosArray]);
+
+  // Group records by month for easier overview
+  const registrosAgrupadosPorMes = useMemo(() => {
+    const grupos = {};
+    
+    historicoRegistros.forEach(r => {
+      const [ano, mes] = r.id.split('-');
+      const chaveMes = `${ano}-${mes}`;
+      if (!grupos[chaveMes]) {
+        const dataObjeto = new Date(r.id + 'T12:00:00');
+        const nomeMesRaw = dataObjeto.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+        const nomeMes = nomeMesRaw.charAt(0).toUpperCase() + nomeMesRaw.slice(1);
+        
+        grupos[chaveMes] = {
+          chave: chaveMes,
+          nomeMes,
+          registros: [],
+          totalBruto: 0,
+          totalGastos: 0,
+          totalLiquido: 0,
+          totalKm: 0,
+          totalViagens: 0
+        };
+      }
+      
+      const rBruto = r.totalBruto || 0;
+      const rGastos = r.gastosGerais || 0;
+      const rLiquido = r.totalLiquido != null ? r.totalLiquido : rBruto - rGastos;
+      
+      grupos[chaveMes].registros.push(r);
+      grupos[chaveMes].totalBruto += rBruto;
+      grupos[chaveMes].totalGastos += rGastos;
+      grupos[chaveMes].totalLiquido += rLiquido;
+      grupos[chaveMes].totalKm += r.km || 0;
+      grupos[chaveMes].totalViagens += r.viagens || 0;
+    });
+    
+    return Object.entries(grupos).sort((a, b) => b[0].localeCompare(a[0])).map(([_, val]) => val);
+  }, [historicoRegistros]);
+
+  const toggleMesExpandido = (chaveMes) => {
+    setMesesExpandidos(prev => ({
+      ...prev,
+      [chaveMes]: !prev[chaveMes]
+    }));
+  };
 
   // ─── Dates with records set (for calendar highlight) ───
   const datasComRegistro = useMemo(() => {
@@ -530,14 +622,59 @@ export default function UberTab() {
             />
           </div>
           <div className="form-group">
-            <label className="form-label">Horário Rodado</label>
+            <label className="form-label">⏰ Início do Turno</label>
             <input
-              type="text"
+              type="time"
               className="form-input"
-              placeholder="Ex: 8h30"
-              value={horarioRodado}
-              onChange={e => setHorarioRodado(e.target.value)}
+              value={horaInicio}
+              onChange={e => setHoraInicio(e.target.value)}
             />
+          </div>
+          <div className="form-group">
+            <label className="form-label">🏁 Término do Turno</label>
+            <input
+              type="time"
+              className="form-input"
+              value={horaFim}
+              onChange={e => setHoraFim(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Categorias & Apps Selecionáveis */}
+        <div style={{ marginTop: '20px', marginBottom: '24px', textAlign: 'left' }}>
+          <label className="form-label" style={{ display: 'block', marginBottom: '8px', fontWeight: 600 }}>
+            🚗 Categorias & Apps Ativos no Dia
+          </label>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {CATEGORIAS_DISPONIVEIS.map(cat => {
+              const ativo = categoriasSelecionadas.includes(cat);
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => toggleCategoria(cat)}
+                  style={{
+                    padding: '10px 18px',
+                    borderRadius: '50px',
+                    border: '1px solid',
+                    borderColor: ativo ? 'var(--green)' : 'var(--glass-border)',
+                    background: ativo ? 'var(--green-dim)' : 'var(--glass-bg)',
+                    color: ativo ? 'var(--green)' : 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    transition: 'var(--transition-fast)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                  className="tag-btn-selecionar"
+                >
+                  {ativo ? '✓' : '+'} {cat}
+                </button>
+              );
+            })}
           </div>
         </div>
         {erro && (
@@ -1016,41 +1153,99 @@ export default function UberTab() {
 
       {/* ═══════ 9. HISTÓRICO DE REGISTROS ═══════ */}
       <div className="section-card">
-        <h2 className="section-title">📜 Histórico de Registros</h2>
+        <div className="historico-header-row">
+          <h2 className="section-title" style={{ margin: 0 }}>📜 Histórico de Registros</h2>
+          {historicoRegistros.length > 0 && (
+            <button 
+              className="btn-maximize" 
+              onClick={() => setHistoricoExpandido(!historicoExpandido)}
+            >
+              {historicoExpandido ? '↕️ Minimizar Histórico' : '↕️ Maximizar Histórico'}
+            </button>
+          )}
+        </div>
+
         {historicoRegistros.length > 0 ? (
-          <div className="historico-table-wrapper">
-            <table className="historico-table">
-              <thead>
-                <tr>
-                  <th>Data</th>
-                  <th>Km</th>
-                  <th>Bruto</th>
-                  <th>Gastos</th>
-                  <th>Líquido</th>
-                  <th>Viagens</th>
-                  <th>Horas</th>
-                </tr>
-              </thead>
-              <tbody>
-                {historicoRegistros.map(r => {
-                  const rBruto = r.totalBruto || 0;
-                  const rGastos = r.gastosGerais || 0;
-                  const rLiquido = r.totalLiquido != null ? r.totalLiquido : rBruto - rGastos;
-                  return (
-                    <tr key={r.id} onClick={() => setDataSelecionada(new Date(r.id + 'T12:00:00'))}>
-                      <td>{formatarDataExibicao(r.id)}</td>
-                      <td>{r.km != null ? r.km : 0}</td>
-                      <td>{formatarMoeda(rBruto)}</td>
-                      <td>{formatarMoeda(rGastos)}</td>
-                      <td className="td-liquido">{formatarMoeda(rLiquido)}</td>
-                      <td>{r.viagens != null ? r.viagens : 0}</td>
-                      <td>{r.horarioRodado || '—'}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          !historicoExpandido ? (
+            <div 
+              className="month-group-card" 
+              style={{ cursor: 'pointer', padding: '20px', textAlign: 'center', background: 'rgba(255, 255, 255, 0.02)' }}
+              onClick={() => setHistoricoExpandido(true)}
+            >
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', margin: 0 }}>
+                📂 O histórico de registros está minimizado. 
+                <strong style={{ color: 'var(--purple)', marginLeft: '6px' }}>Clique para Maximizar / Visualizar</strong>.
+              </p>
+            </div>
+          ) : (
+            <div className="historico-expandido-container">
+              {registrosAgrupadosPorMes.map((grupo, idx) => {
+                const isExpanded = mesesExpandidos[grupo.chave] !== undefined 
+                  ? mesesExpandidos[grupo.chave] 
+                  : idx === 0; // Most recent month expanded by default
+
+                return (
+                  <div key={grupo.chave} className="month-group-card">
+                    <div 
+                      className="month-group-header" 
+                      onClick={() => toggleMesExpandido(grupo.chave)}
+                    >
+                      <div className="month-group-title">
+                        <span>📅</span>
+                        {grupo.nomeMes}
+                      </div>
+                      <div className="month-group-summary">
+                        <span>Bruto: <strong>{formatarMoeda(grupo.totalBruto)}</strong></span>
+                        <span className={grupo.totalLiquido < 0 ? 'negative' : ''}>
+                          Líquido: <strong>{formatarMoeda(grupo.totalLiquido)}</strong>
+                        </span>
+                        <span>Km: <strong>{grupo.totalKm} km</strong></span>
+                      </div>
+                      <span className={`month-group-arrow ${isExpanded ? 'rotated' : ''}`}>▼</span>
+                    </div>
+
+                    {isExpanded && (
+                      <div className="historico-table-wrapper" style={{ border: 'none', borderRadius: 0 }}>
+                        <table className="historico-table">
+                          <thead>
+                            <tr>
+                              <th>Data</th>
+                              <th>Km</th>
+                              <th>Bruto</th>
+                              <th>Gastos</th>
+                              <th>Líquido</th>
+                              <th>Viagens</th>
+                              <th>Horas</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {grupo.registros.map(r => {
+                              const rBruto = r.totalBruto || 0;
+                              const rGastos = r.gastosGerais || 0;
+                              const rLiquido = r.totalLiquido != null ? r.totalLiquido : rBruto - rGastos;
+                              return (
+                                <tr key={r.id} onClick={() => setDataSelecionada(new Date(r.id + 'T12:00:00'))}>
+                                  <td>{formatarDataExibicao(r.id)}</td>
+                                  <td>{r.km != null ? r.km : 0}</td>
+                                  <td>{formatarMoeda(rBruto)}</td>
+                                  <td>{formatarMoeda(rGastos)}</td>
+                                  <td className={`td-liquido ${rLiquido < 0 ? 'negative' : ''}`}>
+                                    {formatarMoeda(rLiquido)}
+                                  </td>
+                                  <td>{r.viagens != null ? r.viagens : 0}</td>
+                                  <td>{r.horarioRodado || '—'}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )
         ) : (
           <p className="empty-state">Nenhum registro encontrado. Comece salvando seu primeiro dia!</p>
         )}

@@ -3028,3 +3028,173 @@ body {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.15);
 }
+
+/* ========================================
+   EXCEL TABLE STYLES & MONTH ACCORDIONS
+   ======================================== */
+.historico-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.btn-maximize {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.btn-maximize:hover {
+  background: var(--glass-bg-hover);
+  border-color: rgba(255, 255, 255, 0.18);
+  transform: translateY(-1px);
+}
+
+.month-group-card {
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  margin-bottom: 14px;
+  overflow: hidden;
+  transition: var(--transition);
+}
+
+.month-group-card:hover {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.month-group-header {
+  background: rgba(0, 0, 0, 0.15);
+  padding: 14px 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  user-select: none;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.month-group-header:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.month-group-title {
+  font-family: var(--font-heading);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.month-group-summary {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.month-group-summary span strong {
+  color: var(--green);
+}
+
+.month-group-summary span.negative strong {
+  color: var(--red);
+}
+
+.month-group-arrow {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  transition: transform 0.3s ease;
+}
+
+.month-group-arrow.rotated {
+  transform: rotate(180deg);
+}
+
+/* Excel Style Table */
+.historico-table-wrapper {
+  overflow-x: auto;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--glass-border);
+}
+
+.historico-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.85rem;
+}
+
+.historico-table th {
+  background: #111116;
+  color: var(--text-secondary);
+  font-weight: 600;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--glass-border);
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  letter-spacing: 0.5px;
+}
+
+.historico-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+  color: var(--text-primary);
+}
+
+/* Alternating zebra rows (Excel Style: preta/cinza escuro) */
+.historico-table tbody tr:nth-child(odd) {
+  background-color: #07070a !important; /* Black */
+}
+
+.historico-table tbody tr:nth-child(even) {
+  background-color: #14141c !important; /* Dark Grey / Slate */
+}
+
+.historico-table tbody tr:hover {
+  background-color: var(--purple-dim) !important; /* Hover highlight */
+  cursor: pointer;
+}
+
+.td-liquido {
+  font-weight: 600;
+  color: var(--green) !important;
+}
+
+.td-liquido.negative {
+  color: var(--red) !important;
+}
+
+/* Category Selection Tag Buttons */
+.tag-btn-selecionar {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.tag-btn-selecionar:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.tag-btn-selecionar.ativo:hover {
+  box-shadow: 0 4px 14px var(--green-glow) !important;
+  border-color: var(--green) !important;
+}
