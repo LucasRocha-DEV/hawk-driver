@@ -12,7 +12,69 @@ const TABS = [
   { id: 'notas', label: 'Observações', icon: '📝' }
 ];
 
-function LoginScreen({ onLogin }) {
+function LoginScreen({ onLogin, erro, limparErro }) {
+  const getErrorMessage = () => {
+    if (!erro) return null;
+    
+    const code = erro.code || erro.message || '';
+    if (code.includes('auth/unauthorized-domain')) {
+      return (
+        <div className="login-error-card">
+          <div className="login-error-header">
+            <span>⚠️</span>
+            <strong>Domínio Não Autorizado</strong>
+          </div>
+          <p>Este domínio do Vercel precisa ser adicionado no seu painel do Firebase Console para permitir o login com o Google.</p>
+          <div className="login-error-steps">
+            <ol>
+              <li>Acesse o <strong>Firebase Console</strong></li>
+              <li>Vá em <strong>Authentication</strong> &gt; <strong>Settings</strong> &gt; <strong>Authorized domains</strong></li>
+              <li>Adicione o domínio do seu deploy da Vercel</li>
+            </ol>
+          </div>
+          <button className="login-error-close" onClick={limparErro}>Entendi</button>
+        </div>
+      );
+    }
+    
+    if (code.includes('auth/popup-closed-by-user')) {
+      return (
+        <div className="login-error-card">
+          <div className="login-error-header">
+            <span>⚠️</span>
+            <strong>Login Cancelado</strong>
+          </div>
+          <p>A janela de autenticação foi fechada antes da conclusão do login. Tente novamente.</p>
+          <button className="login-error-close" onClick={limparErro}>Fechar</button>
+        </div>
+      );
+    }
+
+    if (code.includes('auth/network-request-failed')) {
+      return (
+        <div className="login-error-card">
+          <div className="login-error-header">
+            <span>📡</span>
+            <strong>Erro de Rede</strong>
+          </div>
+          <p>Falha na conexão de rede. Verifique sua internet e tente novamente.</p>
+          <button className="login-error-close" onClick={limparErro}>Fechar</button>
+        </div>
+      );
+    }
+    
+    return (
+      <div className="login-error-card">
+        <div className="login-error-header">
+          <span>❌</span>
+          <strong>Erro ao Entrar</strong>
+        </div>
+        <p>{erro.message || 'Ocorreu um erro inesperado. Tente novamente mais tarde.'}</p>
+        <button className="login-error-close" onClick={limparErro}>Fechar</button>
+      </div>
+    );
+  };
+
   return (
     <div className="login-screen">
       <div className="login-container">
@@ -39,7 +101,10 @@ function LoginScreen({ onLogin }) {
             <span>Seus dados seguros na nuvem</span>
           </div>
         </div>
-        <button className="login-btn" onClick={onLogin} id="btn-login-google">
+        
+        {erro && getErrorMessage()}
+
+        <button className="login-btn" onClick={() => onLogin().catch(() => {})} id="btn-login-google">
           <svg width="20" height="20" viewBox="0 0 48 48">
             <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
             <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
@@ -69,11 +134,11 @@ function LoadingScreen() {
 }
 
 export default function App() {
-  const { usuario, carregando, loginComGoogle, logout } = useAuth();
+  const { usuario, carregando, loginComGoogle, logout, erro, setErro } = useAuth();
   const [abaAtiva, setAbaAtiva] = useState('uber');
 
   if (carregando) return <LoadingScreen />;
-  if (!usuario) return <LoginScreen onLogin={loginComGoogle} />;
+  if (!usuario) return <LoginScreen onLogin={loginComGoogle} erro={erro} limparErro={() => setErro(null)} />;
 
   const renderTab = () => {
     switch (abaAtiva) {

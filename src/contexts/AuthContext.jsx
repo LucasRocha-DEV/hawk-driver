@@ -11,6 +11,7 @@ export function useAuth() {
 export function AuthProvider({ children }) {
   const [usuario, setUsuario] = useState(null);
   const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -21,10 +22,13 @@ export function AuthProvider({ children }) {
   }, []);
 
   const loginComGoogle = async () => {
+    setErro(null);
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (error) {
       console.error('Erro ao fazer login:', error);
+      setErro(error);
+      throw error;
     }
   };
 
@@ -39,6 +43,8 @@ export function AuthProvider({ children }) {
   const value = {
     usuario,
     carregando,
+    erro,
+    setErro,
     loginComGoogle,
     logout
   };
