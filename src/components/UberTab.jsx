@@ -232,6 +232,26 @@ export default function UberTab() {
     }
   }, [dataChave, registroDoDia]);
 
+  // ─── Auto-calculate total hours from start/end times ───
+  useEffect(() => {
+    if (horaInicio && horaFim) {
+      const [hStart, mStart] = horaInicio.split(':').map(Number);
+      let [hEnd, mEnd] = horaFim.split(':').map(Number);
+      
+      let startMinutes = hStart * 60 + mStart;
+      let endMinutes = hEnd * 60 + mEnd;
+      
+      if (endMinutes < startMinutes) {
+        endMinutes += 24 * 60; // Spans across midnight
+      }
+      
+      const diffMinutes = endMinutes - startMinutes;
+      const h = Math.floor(diffMinutes / 60);
+      const m = diffMinutes % 60;
+      setHorarioRodado(`${h}h${m > 0 ? String(m).padStart(2, '0') : '00'}`);
+    }
+  }, [horaInicio, horaFim]);
+
   // ─── Derived values ───
   const brutoNum = parseFloat(totalBruto) || 0;
   const gastosNum = parseFloat(gastosGerais) || 0;
@@ -638,6 +658,19 @@ export default function UberTab() {
               value={horaFim}
               onChange={e => setHoraFim(e.target.value)}
             />
+          </div>
+          <div className="form-group">
+            <label className="form-label">⏱️ Total de Horas Rodadas</label>
+            <input
+              type="text"
+              className="form-input"
+              placeholder="Ex: 8h30, 8 ou 5h45"
+              value={horarioRodado}
+              onChange={e => setHorarioRodado(e.target.value)}
+            />
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px', display: 'block' }}>
+              Calculado se preencher Início/Término, ou digite diretamente.
+            </span>
           </div>
         </div>
 
