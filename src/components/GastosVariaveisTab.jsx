@@ -10,7 +10,7 @@ import {
   onSnapshot,
   query,
   where,
-  orderBy
+  getDocs
 } from 'firebase/firestore';
 import {
   BarChart,
@@ -35,6 +35,7 @@ const CATEGORIAS = [
   'Restaurante',
   'Compras Online',
   'Presente',
+  'Cartão de Crédito',
   'Outros'
 ];
 
@@ -50,8 +51,17 @@ const CORES_CATEGORIAS = {
   'Restaurante': '#a29bfe',
   'Compras Online': '#fdcb6e',
   'Presente': '#636e72',
+  'Cartão de Crédito': '#e84393',
   'Outros': '#b2bec3'
 };
+
+const METODOS_PAGAMENTO = [
+  'Cartão de Crédito',
+  'Cartão de Débito',
+  'PIX',
+  'Dinheiro',
+  'Boleto'
+];
 
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -76,6 +86,11 @@ function dataHojeISO() {
   return `${y}-${m}-${d}`;
 }
 
+// Gera um ID único para agrupamento de parcelas
+function gerarGrupoId() {
+  return Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
+}
+
 export default function GastosVariaveisTab() {
   const { usuario } = useAuth();
   const agora = new Date();
@@ -94,6 +109,10 @@ export default function GastosVariaveisTab() {
   const [valor, setValor] = useState('');
   const [data, setData] = useState(dataHojeISO());
   const [observacao, setObservacao] = useState('');
+  const [metodoPagamento, setMetodoPagamento] = useState('');
+  const [parcelado, setParcelado] = useState(false);
+  const [totalParcelas, setTotalParcelas] = useState('');
+  const [valorTotal, setValorTotal] = useState('');
   const [salvando, setSalvando] = useState(false);
 
   // Edit state
@@ -101,6 +120,9 @@ export default function GastosVariaveisTab() {
 
   // Filter state
   const [filtroCategoria, setFiltroCategoria] = useState('Todas');
+
+  // Confirmation dialog for deleting installments
+  const [confirmarExclusao, setConfirmarExclusao] = useState(null);
 
   // Month navigation
   const mesAnterior = () => {
@@ -121,7 +143,7 @@ export default function GastosVariaveisTab() {
     }
   };
 
-  // Firestore listener
+  // Firestore listener — sem orderBy para evitar necessidade de índice composto
   useEffect(() => {
     if (!usuario) {
       setGastos([]);
@@ -134,12 +156,13 @@ export default function GastosVariaveisTab() {
     const q = query(
       colRef,
       where('mes', '==', mesAtual),
-      where('ano', '==', anoAtual),
-      orderBy('data', 'desc')
+      where('ano', '==', anoAtual)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const lista = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      // Ordenar client-side por data decrescente
+      lista.sort((a, b) => (b.data || '').localeCompare(a.data || ''));
       setGastos(lista);
       setCarregando(false);
     }, (error) => {
@@ -154,6 +177,17 @@ export default function GastosVariaveisTab() {
   useEffect(() => {
     setFiltroCategoria('Todas');
   }, [mesAtual, anoAtual]);
+
+  // Calculate installment value when valorTotal or totalParcelas change
+  useEffect(() => {
+    if (parcelado && valorTotal && totalParcelas) {
+      const vTotal = parseFloat(valorTotal);
+      const nParcelas = parseInt(totalParcelas, 10);
+      if (vTotal > 0 && nParcelas > 0) {
+        setValor((vTotal / nParcelas).toFixed(2));
+      }
+    }
+  }, [parcelado, valorTotal, totalParcelas]);
 
   // Filtered list
   const gastosFiltrados = useMemo(() => {
@@ -172,7 +206,13 @@ export default function GastosVariaveisTab() {
     const total = gastos.reduce((acc, g) => acc + Number(g.valor), 0);
     const quantidade = gastos.length;
     const media = quantidade > 0 ? total / quantidade : 0;
-    return { total, quantidade, media };
+
+    // Total no cartão de crédito
+    const totalCartao = gastos
+      .filter(g => g.metodoPagamento === 'Cartão de Crédito')
+      .reduce((acc, g) => acc + Number(g.valor), 0);
+
+    return { total, quantidade, media, totalCartao };
   }, [gastos]);
 
   // Chart data
@@ -205,6 +245,10 @@ export default function GastosVariaveisTab() {
     setValor('');
     setData(dataHojeISO());
     setObservacao('');
+    setMetodoPagamento('');
+    setParcelado(false);
+    setTotalParcelas('');
+    setValorTotal('');
     setEditandoId(null);
   };
 
@@ -214,6 +258,10 @@ export default function GastosVariaveisTab() {
     setValor(String(gasto.valor));
     setData(gasto.data);
     setObservacao(gasto.observacao || '');
+    setMetodoPagamento(gasto.metodoPagamento || '');
+    setParcelado(!!gasto.parcelado);
+    setTotalParcelas(gasto.totalParcelas ? String(gasto.totalParcelas) : '');
+    setValorTotal(gasto.valorTotal ? String(gasto.valorTotal) : '');
     setEditandoId(gasto.id);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -225,24 +273,77 @@ export default function GastosVariaveisTab() {
     setSalvando(true);
 
     const [anoData, mesData] = data.split('-').map(Number);
-    const dadosGasto = {
-      descricao: descricao.trim(),
-      categoria,
-      valor: parseFloat(valor),
-      data,
-      observacao: observacao.trim(),
-      mes: mesData - 1,
-      ano: anoData
-    };
 
     try {
       if (editandoId) {
+        // Edição simples (não recria parcelas)
+        const dadosGasto = {
+          descricao: descricao.trim(),
+          categoria,
+          valor: parseFloat(valor),
+          data,
+          observacao: observacao.trim(),
+          metodoPagamento: metodoPagamento || null,
+          mes: mesData - 1,
+          ano: anoData
+        };
         const docRef = doc(db, 'usuarios', usuario.uid, 'despesas_variaveis', editandoId);
         await updateDoc(docRef, dadosGasto);
+      } else if (parcelado && totalParcelas && valorTotal) {
+        // Criar parcelas automaticamente
+        const nParcelas = parseInt(totalParcelas, 10);
+        const vTotal = parseFloat(valorTotal);
+        const vParcela = parseFloat((vTotal / nParcelas).toFixed(2));
+        const grupoId = gerarGrupoId();
+
+        const colRef = collection(db, 'usuarios', usuario.uid, 'despesas_variaveis');
+
+        for (let i = 0; i < nParcelas; i++) {
+          // Calcular mês/ano da parcela
+          let parcelaMes = (mesData - 1) + i; // mesData é 1-indexed, converter para 0-indexed
+          let parcelaAno = anoData;
+          while (parcelaMes > 11) {
+            parcelaMes -= 12;
+            parcelaAno += 1;
+          }
+
+          // Data da parcela (mesmo dia, mês diferente)
+          const diaOriginal = data.split('-')[2];
+          const parcelaData = `${parcelaAno}-${String(parcelaMes + 1).padStart(2, '0')}-${diaOriginal}`;
+
+          await addDoc(colRef, {
+            descricao: descricao.trim(),
+            categoria,
+            valor: vParcela,
+            valorTotal: vTotal,
+            data: parcelaData,
+            observacao: observacao.trim(),
+            metodoPagamento: metodoPagamento || 'Cartão de Crédito',
+            mes: parcelaMes,
+            ano: parcelaAno,
+            parcelado: true,
+            parcelaAtual: i + 1,
+            totalParcelas: nParcelas,
+            grupoParcelamento: grupoId
+          });
+        }
       } else {
+        // Gasto único (não parcelado)
+        const dadosGasto = {
+          descricao: descricao.trim(),
+          categoria,
+          valor: parseFloat(valor),
+          data,
+          observacao: observacao.trim(),
+          metodoPagamento: metodoPagamento || null,
+          mes: mesData - 1,
+          ano: anoData,
+          parcelado: false
+        };
         const colRef = collection(db, 'usuarios', usuario.uid, 'despesas_variaveis');
         await addDoc(colRef, dadosGasto);
       }
+
       limparFormulario();
     } catch (error) {
       console.error('Erro ao salvar gasto:', error);
@@ -251,13 +352,58 @@ export default function GastosVariaveisTab() {
     }
   };
 
-  const excluirGasto = async (id) => {
+  const excluirGasto = async (gasto) => {
+    if (gasto.parcelado && gasto.grupoParcelamento) {
+      // Mostrar confirmação para parcelas
+      setConfirmarExclusao(gasto);
+    } else {
+      await excluirGastoUnico(gasto.id);
+    }
+  };
+
+  const excluirGastoUnico = async (id) => {
     try {
       const docRef = doc(db, 'usuarios', usuario.uid, 'despesas_variaveis', id);
       await deleteDoc(docRef);
       if (editandoId === id) limparFormulario();
     } catch (error) {
       console.error('Erro ao excluir gasto:', error);
+    }
+  };
+
+  const excluirTodasParcelas = async (grupoId) => {
+    try {
+      const colRef = collection(db, 'usuarios', usuario.uid, 'despesas_variaveis');
+      const q = query(colRef, where('grupoParcelamento', '==', grupoId));
+      const snapshot = await getDocs(q);
+      const batch = [];
+      snapshot.forEach(docSnap => {
+        batch.push(deleteDoc(doc(db, 'usuarios', usuario.uid, 'despesas_variaveis', docSnap.id)));
+      });
+      await Promise.all(batch);
+      limparFormulario();
+    } catch (error) {
+      console.error('Erro ao excluir parcelas:', error);
+    }
+  };
+
+  const excluirParcelasRestantes = async (gasto) => {
+    try {
+      const colRef = collection(db, 'usuarios', usuario.uid, 'despesas_variaveis');
+      const q = query(colRef, where('grupoParcelamento', '==', gasto.grupoParcelamento));
+      const snapshot = await getDocs(q);
+      const batch = [];
+      snapshot.forEach(docSnap => {
+        const d = docSnap.data();
+        // Excluir parcelas desta em diante (parcelaAtual >= gasto.parcelaAtual)
+        if (d.parcelaAtual >= gasto.parcelaAtual) {
+          batch.push(deleteDoc(doc(db, 'usuarios', usuario.uid, 'despesas_variaveis', docSnap.id)));
+        }
+      });
+      await Promise.all(batch);
+      limparFormulario();
+    } catch (error) {
+      console.error('Erro ao excluir parcelas restantes:', error);
     }
   };
 
@@ -327,17 +473,17 @@ export default function GastosVariaveisTab() {
           </div>
 
           <div className="form-group">
-            <label className="form-label">Valor (R$)</label>
-            <input
-              type="number"
+            <label className="form-label">💳 Método de Pagamento</label>
+            <select
               className="form-input"
-              placeholder="0,00"
-              step="0.01"
-              min="0.01"
-              value={valor}
-              onChange={e => setValor(e.target.value)}
-              required
-            />
+              value={metodoPagamento}
+              onChange={e => setMetodoPagamento(e.target.value)}
+            >
+              <option value="">Selecione...</option>
+              {METODOS_PAGAMENTO.map(m => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
           </div>
 
           <div className="form-group">
@@ -350,6 +496,110 @@ export default function GastosVariaveisTab() {
               required
             />
           </div>
+
+          {/* Toggle Parcelado */}
+          {!editandoId && (
+            <div className="form-group form-group-toggle" style={{ gridColumn: '1 / -1' }}>
+              <label className="toggle-label">
+                <span className="toggle-text">
+                  💳 Compra Parcelada?
+                  <span className="toggle-hint">
+                    {parcelado ? 'Criar parcelas nos meses seguintes' : 'Gasto à vista'}
+                  </span>
+                </span>
+                <div
+                  className={`toggle-switch ${parcelado ? 'toggle-on' : ''}`}
+                  onClick={() => setParcelado(!parcelado)}
+                >
+                  <div className="toggle-knob" />
+                </div>
+              </label>
+            </div>
+          )}
+
+          {/* Modo Parcela Existente — para itens já parcelados no cartão */}
+          {editandoId && (
+            <div className="form-group form-group-toggle" style={{ gridColumn: '1 / -1' }}>
+              <label className="toggle-label">
+                <span className="toggle-text">
+                  📋 Já é uma parcela em andamento?
+                  <span className="toggle-hint">
+                    {parcelado ? 'Marcar como parcela (ex: 3/12)' : 'Gasto avulso'}
+                  </span>
+                </span>
+                <div
+                  className={`toggle-switch ${parcelado ? 'toggle-on' : ''}`}
+                  onClick={() => setParcelado(!parcelado)}
+                >
+                  <div className="toggle-knob" />
+                </div>
+              </label>
+            </div>
+          )}
+
+          {/* Campos de parcelamento */}
+          {parcelado && !editandoId && (
+            <>
+              <div className="form-group">
+                <label className="form-label">💰 Valor Total da Compra (R$)</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  placeholder="Ex: 3000.00"
+                  step="0.01"
+                  min="0.01"
+                  value={valorTotal}
+                  onChange={e => setValorTotal(e.target.value)}
+                  required={parcelado}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">🔢 Número de Parcelas</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  placeholder="Ex: 12"
+                  min="2"
+                  max="48"
+                  value={totalParcelas}
+                  onChange={e => setTotalParcelas(e.target.value)}
+                  required={parcelado}
+                />
+              </div>
+
+              {valorTotal && totalParcelas && (
+                <div className="parcela-preview" style={{ gridColumn: '1 / -1' }}>
+                  <div className="parcela-preview-card">
+                    <span className="parcela-preview-label">Valor de cada parcela:</span>
+                    <span className="parcela-preview-valor">
+                      {formatarMoeda(parseFloat(valorTotal) / parseInt(totalParcelas, 10))}
+                    </span>
+                    <span className="parcela-preview-info">
+                      {totalParcelas}x de {formatarMoeda(parseFloat(valorTotal) / parseInt(totalParcelas, 10))}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Valor (para gasto à vista) */}
+          {!parcelado && (
+            <div className="form-group">
+              <label className="form-label">Valor (R$)</label>
+              <input
+                type="number"
+                className="form-input"
+                placeholder="0,00"
+                step="0.01"
+                min="0.01"
+                value={valor}
+                onChange={e => setValor(e.target.value)}
+                required
+              />
+            </div>
+          )}
 
           <div className="form-group" style={{ gridColumn: '1 / -1' }}>
             <label className="form-label">Observação (opcional)</label>
@@ -368,7 +618,9 @@ export default function GastosVariaveisTab() {
                 ? 'Salvando...'
                 : editandoId
                   ? '💾 Salvar Alteração'
-                  : '➕ Adicionar Gasto'
+                  : parcelado
+                    ? `💳 Criar ${totalParcelas || '?'}x Parcelas`
+                    : '➕ Adicionar Gasto'
               }
             </button>
             {editandoId && (
@@ -380,26 +632,42 @@ export default function GastosVariaveisTab() {
         </form>
       </div>
 
-      {/* Monthly Summary Cards */}
-      <div className="summary-cards">
-        <div className="card summary-card">
-          <span className="summary-label">Total do Mês</span>
-          <span className="summary-value" style={{ color: '#ff6b6b' }}>
-            {formatarMoeda(resumo.total)}
-          </span>
+      {/* Monthly Summary Cards — Design Profissional */}
+      <div className="metric-cards-grid">
+        <div className="metric-card">
+          <div className="metric-card-accent" style={{ background: 'linear-gradient(135deg, #ff6b6b, #ee5a24)' }} />
+          <div className="metric-card-icon">💸</div>
+          <div className="metric-card-body">
+            <span className="metric-card-label">Total do Mês</span>
+            <span className="metric-card-value" style={{ color: '#ff6b6b' }}>{formatarMoeda(resumo.total)}</span>
+          </div>
         </div>
-        <div className="card summary-card">
-          <span className="summary-label">Quantidade</span>
-          <span className="summary-value" style={{ color: '#6c5ce7' }}>
-            {resumo.quantidade} {resumo.quantidade === 1 ? 'gasto' : 'gastos'}
-          </span>
+        <div className="metric-card">
+          <div className="metric-card-accent" style={{ background: 'linear-gradient(135deg, #6c5ce7, #a29bfe)' }} />
+          <div className="metric-card-icon">📊</div>
+          <div className="metric-card-body">
+            <span className="metric-card-label">Quantidade</span>
+            <span className="metric-card-value" style={{ color: '#6c5ce7' }}>{resumo.quantidade} {resumo.quantidade === 1 ? 'gasto' : 'gastos'}</span>
+          </div>
         </div>
-        <div className="card summary-card">
-          <span className="summary-label">Média por Gasto</span>
-          <span className="summary-value" style={{ color: '#ffd93d' }}>
-            {formatarMoeda(resumo.media)}
-          </span>
+        <div className="metric-card">
+          <div className="metric-card-accent" style={{ background: 'linear-gradient(135deg, #ffd93d, #f0932b)' }} />
+          <div className="metric-card-icon">📈</div>
+          <div className="metric-card-body">
+            <span className="metric-card-label">Média por Gasto</span>
+            <span className="metric-card-value" style={{ color: '#ffd93d' }}>{formatarMoeda(resumo.media)}</span>
+          </div>
         </div>
+        {resumo.totalCartao > 0 && (
+          <div className="metric-card">
+            <div className="metric-card-accent" style={{ background: 'linear-gradient(135deg, #e84393, #fd79a8)' }} />
+            <div className="metric-card-icon">💳</div>
+            <div className="metric-card-body">
+              <span className="metric-card-label">No Cartão de Crédito</span>
+              <span className="metric-card-value" style={{ color: '#e84393' }}>{formatarMoeda(resumo.totalCartao)}</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Bar Chart */}
@@ -460,7 +728,12 @@ export default function GastosVariaveisTab() {
                   {index + 1}º
                 </span>
                 <div className="top5-info">
-                  <span className="top5-descricao">{gasto.descricao}</span>
+                  <span className="top5-descricao">
+                    {gasto.descricao}
+                    {gasto.parcelado && (
+                      <span className="badge-parcela">{gasto.parcelaAtual}/{gasto.totalParcelas}</span>
+                    )}
+                  </span>
                   <span
                     className="categoria-badge"
                     style={{ background: CORES_CATEGORIAS[gasto.categoria] || '#b2bec3' }}
@@ -525,16 +798,37 @@ export default function GastosVariaveisTab() {
                 <div className="expense-item-header">
                   <div className="expense-item-left">
                     <span className="expense-date">{formatarData(gasto.data)}</span>
-                    <span className="expense-descricao">{gasto.descricao}</span>
+                    <span className="expense-descricao">
+                      {gasto.descricao}
+                      {gasto.parcelado && (
+                        <span className="badge-parcela">
+                          {gasto.parcelaAtual}/{gasto.totalParcelas}
+                        </span>
+                      )}
+                    </span>
                     <span
                       className="categoria-badge"
                       style={{ background: CORES_CATEGORIAS[gasto.categoria] || '#b2bec3' }}
                     >
                       {gasto.categoria}
                     </span>
+                    {gasto.metodoPagamento && (
+                      <span className="metodo-badge">
+                        {gasto.metodoPagamento === 'Cartão de Crédito' ? '💳' :
+                         gasto.metodoPagamento === 'Cartão de Débito' ? '💳' :
+                         gasto.metodoPagamento === 'PIX' ? '⚡' :
+                         gasto.metodoPagamento === 'Dinheiro' ? '💵' : '📄'}
+                        {' '}{gasto.metodoPagamento}
+                      </span>
+                    )}
                   </div>
                   <div className="expense-item-right">
                     <span className="expense-valor">{formatarMoeda(gasto.valor)}</span>
+                    {gasto.parcelado && gasto.valorTotal && (
+                      <span className="expense-valor-total-info">
+                        Total: {formatarMoeda(gasto.valorTotal)}
+                      </span>
+                    )}
                     <button
                       className="btn-icon btn-edit"
                       onClick={() => iniciarEdicao(gasto)}
@@ -544,7 +838,7 @@ export default function GastosVariaveisTab() {
                     </button>
                     <button
                       className="btn-icon btn-delete"
-                      onClick={() => excluirGasto(gasto.id)}
+                      onClick={() => excluirGasto(gasto)}
                       title="Excluir"
                     >
                       ✕
@@ -561,6 +855,55 @@ export default function GastosVariaveisTab() {
           </div>
         )}
       </div>
+
+      {/* Modal de Confirmação de Exclusão de Parcelas */}
+      {confirmarExclusao && (
+        <div className="modal-overlay" onClick={() => setConfirmarExclusao(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <h3 className="modal-title">🗑️ Excluir Parcela</h3>
+            <p className="modal-descricao">
+              <strong>{confirmarExclusao.descricao}</strong> — Parcela {confirmarExclusao.parcelaAtual}/{confirmarExclusao.totalParcelas}
+            </p>
+            <p className="modal-texto">O que deseja fazer?</p>
+
+            <div className="modal-actions">
+              <button
+                className="modal-btn modal-btn-danger"
+                onClick={async () => {
+                  await excluirGastoUnico(confirmarExclusao.id);
+                  setConfirmarExclusao(null);
+                }}
+              >
+                🗑️ Excluir Apenas Esta Parcela
+              </button>
+              <button
+                className="modal-btn modal-btn-warning"
+                onClick={async () => {
+                  await excluirParcelasRestantes(confirmarExclusao);
+                  setConfirmarExclusao(null);
+                }}
+              >
+                ⏩ Excluir Esta e as Restantes
+              </button>
+              <button
+                className="modal-btn modal-btn-danger-full"
+                onClick={async () => {
+                  await excluirTodasParcelas(confirmarExclusao.grupoParcelamento);
+                  setConfirmarExclusao(null);
+                }}
+              >
+                💥 Excluir Todas as Parcelas
+              </button>
+              <button
+                className="modal-btn modal-btn-cancel"
+                onClick={() => setConfirmarExclusao(null)}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

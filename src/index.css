@@ -3198,3 +3198,710 @@ body {
   box-shadow: 0 4px 14px var(--green-glow) !important;
   border-color: var(--green) !important;
 }
+
+/* ========================================
+   TOGGLE SWITCH (Recorrente / Parcelado)
+   ======================================== */
+.form-group-toggle {
+  grid-column: 1 / -1;
+}
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  cursor: pointer;
+  padding: 14px 18px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  transition: var(--transition);
+}
+
+.toggle-label:hover {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.toggle-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.toggle-hint {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.toggle-switch {
+  width: 48px;
+  height: 26px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 13px;
+  position: relative;
+  cursor: pointer;
+  transition: var(--transition);
+  flex-shrink: 0;
+}
+
+.toggle-switch.toggle-on {
+  background: var(--green);
+}
+
+.toggle-knob {
+  width: 20px;
+  height: 20px;
+  background: #fff;
+  border-radius: 50%;
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  transition: var(--transition);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.toggle-switch.toggle-on .toggle-knob {
+  left: 25px;
+}
+
+/* ========================================
+   BADGE RECORRENTE (🔁 icon next to name)
+   ======================================== */
+.badge-recorrente {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  font-size: 0.8rem;
+  opacity: 0.7;
+  vertical-align: middle;
+}
+
+/* ========================================
+   VIGÊNCIA FINAL (date range inputs)
+   ======================================== */
+.vigencia-final {
+  margin-top: 4px;
+}
+
+.vigencia-final label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  margin-bottom: 6px;
+  display: block;
+}
+
+.vigencia-inputs {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.vigencia-select,
+.vigencia-ano-input {
+  padding: 10px 14px;
+  background: var(--bg-input);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  transition: var(--transition);
+  outline: none;
+  flex: 1;
+}
+
+.vigencia-select:focus,
+.vigencia-ano-input:focus {
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px var(--green-dim);
+}
+
+.vigencia-select {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%238888a8' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+}
+
+.vigencia-select option {
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
+.expense-vigencia-info {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 4px;
+  display: inline-block;
+}
+
+/* ========================================
+   BADGE PARCELA (3/12)
+   ======================================== */
+.badge-parcela {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  margin-left: 8px;
+  background: linear-gradient(135deg, rgba(232, 67, 147, 0.2), rgba(108, 92, 231, 0.2));
+  border: 1px solid rgba(232, 67, 147, 0.3);
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #e84393;
+  letter-spacing: 0.5px;
+  vertical-align: middle;
+}
+
+/* ========================================
+   PARCELA PREVIEW CARD
+   ======================================== */
+.parcela-preview {
+  margin-top: 4px;
+}
+
+.parcela-preview-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, rgba(232, 67, 147, 0.08), rgba(108, 92, 231, 0.08));
+  border: 1px solid rgba(232, 67, 147, 0.2);
+  border-radius: var(--radius);
+  text-align: center;
+}
+
+.parcela-preview-label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.parcela-preview-valor {
+  font-family: var(--font-heading);
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #e84393;
+}
+
+.parcela-preview-info {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* ========================================
+   MÉTODO DE PAGAMENTO BADGE
+   ======================================== */
+.metodo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* ========================================
+   VALOR TOTAL INFO (for installments)
+   ======================================== */
+.expense-valor-total-info {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  display: block;
+  margin-top: 2px;
+}
+
+/* ========================================
+   MODAL OVERLAY (delete confirmation)
+   ======================================== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: fadeIn 0.2s ease;
+}
+
+.modal-content {
+  background: var(--bg-card);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  max-width: 440px;
+  width: 100%;
+  animation: fadeInUp 0.3s ease;
+}
+
+.modal-title {
+  font-family: var(--font-heading);
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+  color: var(--text-primary);
+}
+
+.modal-descricao {
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.modal-texto {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+}
+
+.modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.modal-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+  border: 1px solid transparent;
+  width: 100%;
+}
+
+.modal-btn:hover {
+  transform: translateY(-1px);
+}
+
+.modal-btn-danger {
+  background: var(--red-dim);
+  border-color: rgba(255, 107, 107, 0.2);
+  color: var(--red);
+}
+
+.modal-btn-danger:hover {
+  background: rgba(255, 107, 107, 0.25);
+}
+
+.modal-btn-warning {
+  background: var(--yellow-dim);
+  border-color: rgba(255, 217, 61, 0.2);
+  color: var(--yellow);
+}
+
+.modal-btn-warning:hover {
+  background: rgba(255, 217, 61, 0.25);
+}
+
+.modal-btn-danger-full {
+  background: rgba(255, 107, 107, 0.1);
+  border-color: rgba(255, 107, 107, 0.3);
+  color: var(--red);
+}
+
+.modal-btn-danger-full:hover {
+  background: rgba(255, 107, 107, 0.2);
+}
+
+.modal-btn-cancel {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: var(--glass-border);
+  color: var(--text-secondary);
+}
+
+.modal-btn-cancel:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+  color: var(--text-primary);
+}
+
+/* ========================================
+   REDESIGN SUMMARY CARDS (Metric Cards)
+   ======================================== */
+.metric-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.metric-card {
+  position: relative;
+  background: var(--bg-card);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  overflow: hidden;
+  transition: var(--transition);
+}
+
+.metric-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.metric-card-accent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  opacity: 0.8;
+}
+
+.metric-card-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.metric-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.metric-card-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.metric-card-value {
+  font-family: var(--font-heading);
+  font-size: 1.4rem;
+  font-weight: 800;
+}
+
+/* ========================================
+   PATRIMÔNIO TAB
+   ======================================== */
+.patrimonio-header {
+  margin-bottom: 24px;
+}
+
+.patrimonio-titulo {
+  font-family: var(--font-heading);
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+  background: linear-gradient(135deg, #00b894, #00d4aa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.patrimonio-subtitulo {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+
+.patrimonio-atualizado {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.03);
+  padding: 4px 10px;
+  border-radius: 12px;
+}
+
+.patrimonio-total-card {
+  position: relative;
+  background: var(--bg-card);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: 32px 24px;
+  text-align: center;
+  overflow: hidden;
+  margin-bottom: 32px;
+}
+
+.patrimonio-total-bg {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at top right, rgba(0, 212, 170, 0.1), transparent 50%),
+              radial-gradient(circle at bottom left, rgba(108, 92, 231, 0.1), transparent 50%);
+  z-index: 1;
+}
+
+.patrimonio-total-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.patrimonio-total-label {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 600;
+}
+
+.patrimonio-total-valor {
+  font-family: var(--font-heading);
+  font-size: 3rem;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 4px 24px rgba(0, 212, 170, 0.3);
+}
+
+.patrimonio-total-breakdown {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  background: rgba(0, 0, 0, 0.2);
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.patrimonio-sep {
+  color: var(--glass-border);
+}
+
+.patrimonio-section {
+  margin-bottom: 32px;
+}
+
+.patrimonio-section-title {
+  font-size: 1.1rem;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.caixinhas-saldo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.saldo-card {
+  position: relative;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  overflow: hidden;
+  transition: var(--transition);
+}
+
+.saldo-card:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.saldo-card-conta {
+  border-color: rgba(0, 212, 170, 0.3);
+  background: linear-gradient(135deg, rgba(0, 212, 170, 0.05), transparent);
+}
+
+.saldo-card-accent {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+}
+
+.saldo-card-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.saldo-card-emoji {
+  font-size: 1.8rem;
+}
+
+.saldo-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.saldo-card-nome {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.saldo-card-valor {
+  font-family: var(--font-heading);
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.saldo-card-right {
+  display: flex;
+  align-items: center;
+}
+
+.saldo-btn-edit {
+  background: transparent;
+  border: 1px solid var(--glass-border);
+  color: var(--text-secondary);
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.saldo-btn-edit:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.saldo-edit-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.saldo-edit-input {
+  width: 100px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--purple);
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  outline: none;
+}
+
+.saldo-edit-input:focus {
+  box-shadow: 0 0 0 2px var(--purple-dim);
+}
+
+.saldo-btn-save {
+  background: var(--green);
+  color: #000;
+  border: none;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.saldo-btn-cancel {
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  border: 1px solid var(--glass-border);
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.patrimonio-dist-bar {
+  display: flex;
+  height: 12px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.05);
+  margin-bottom: 16px;
+}
+
+.patrimonio-dist-segment {
+  height: 100%;
+  transition: width 0.5s ease;
+}
+
+.patrimonio-dist-segment:hover {
+  filter: brightness(1.2);
+}
+
+.patrimonio-dist-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.patrimonio-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.patrimonio-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.patrimonio-dica {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: rgba(108, 92, 231, 0.05);
+  border: 1px solid rgba(108, 92, 231, 0.2);
+  padding: 16px;
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.patrimonio-dica-icon {
+  font-size: 1.2rem;
+}
+

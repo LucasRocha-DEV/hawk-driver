@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../firebase';
 import {
@@ -7,9 +7,7 @@ import {
   doc,
   updateDoc,
   deleteDoc,
-  onSnapshot,
-  query,
-  where
+  onSnapshot
 } from 'firebase/firestore';
 import {
   PieChart,
@@ -37,6 +35,7 @@ const CATEGORIAS = [
   'Academia',
   'Escola / Curso',
   'Condomínio',
+  'Cartão de Crédito',
   'Outros'
 ];
 
@@ -52,6 +51,7 @@ const CORES_CATEGORIAS = {
   'Academia': '#0984e3',
   'Escola / Curso': '#fdcb6e',
   'Condomínio': '#636e72',
+  'Cartão de Crédito': '#e84393',
   'Outros': '#b2bec3'
 };
 
@@ -60,7 +60,9 @@ const formInicial = {
   categoria: '',
   valor: '',
   vencimento: '',
-  pago: false
+  recorrente: true,
+  mesFim: '',
+  anoFim: ''
 };
 
 function formatarMoeda(valor) {
@@ -72,6 +74,36 @@ function renderLabelPie({ name, percent }) {
   return `${(percent * 100).toFixed(0)}%`;
 }
 
+// Helper: chave do mês para usar no mapa pagoPorMes
+function chaveMes(mes, ano) {
+  return `${ano}-${String(mes).padStart(2, '0')}`;
+}
+
+// Helper: verifica se uma despesa está ativa em determinado mês/ano
+function despesaAtivaNoPeriodo(despesa, mes, ano) {
+  const mesInicio = despesa.mesInicio ?? despesa.mes ?? 0;
+  const anoInicio = despesa.anoInicio ?? despesa.ano ?? 2020;
+
+  // Converter para timestamp linear para comparação simples
+  const periodoAtual = ano * 12 + mes;
+  const periodoInicio = anoInicio * 12 + mesInicio;
+
+  if (periodoAtual < periodoInicio) return false;
+
+  // Se não é recorrente, só aparece no mês de criação
+  if (despesa.recorrente === false) {
+    return periodoAtual === periodoInicio;
+  }
+
+  // Se tem vigência final definida
+  if (despesa.mesFim != null && despesa.anoFim != null && despesa.mesFim !== '' && despesa.anoFim !== '') {
+    const periodoFim = Number(despesa.anoFim) * 12 + Number(despesa.mesFim);
+    if (periodoAtual > periodoFim) return false;
+  }
+
+  return true;
+}
+
 export default function DespesasFixasTab() {
   const { usuario } = useAuth();
 
@@ -79,44 +111,61 @@ export default function DespesasFixasTab() {
   const [mesAtual, setMesAtual] = useState(hoje.getMonth());
   const [anoAtual, setAnoAtual] = useState(hoje.getFullYear());
 
-  const [despesas, setDespesas] = useState([]);
+  const [todasDespesas, setTodasDespesas] = useState([]);
   const [form, setForm] = useState(formInicial);
   const [editandoId, setEditandoId] = useState(null);
 
-  // ── Firestore real-time listener ──────────────────────────────────
+  // ── Firestore: carregar TODAS as despesas fixas (sem filtro de mês) ──
   useEffect(() => {
     if (!usuario) return;
 
     const colRef = collection(db, 'usuarios', usuario.uid, 'despesas_fixas');
-    const q = query(colRef, where('mes', '==', mesAtual), where('ano', '==', anoAtual));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribe = onSnapshot(colRef, (snapshot) => {
       const lista = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
       lista.sort((a, b) => (a.vencimento || 32) - (b.vencimento || 32));
-      setDespesas(lista);
+      setTodasDespesas(lista);
     });
 
     return () => unsubscribe();
-  }, [usuario, mesAtual, anoAtual]);
+  }, [usuario]);
 
-  // ── Summaries ─────────────────────────────────────────────────────
+  // ── Projetar despesas ativas no mês visualizado ──
+  const despesasDoMes = useMemo(() => {
+    return todasDespesas.filter(d => despesaAtivaNoPeriodo(d, mesAtual, anoAtual));
+  }, [todasDespesas, mesAtual, anoAtual]);
+
+  // ── Status "pago" para o mês atual ──
+  const isPago = useCallback((despesa) => {
+    const chave = chaveMes(mesAtual, anoAtual);
+    // Suporte a formato antigo (boolean simples) e novo (mapa)
+    if (despesa.pagoPorMes && typeof despesa.pagoPorMes === 'object') {
+      return !!despesa.pagoPorMes[chave];
+    }
+    // Formato antigo: verificar se é o mês original da despesa
+    if (despesa.pago && despesa.mes === mesAtual && despesa.ano === anoAtual) {
+      return true;
+    }
+    return false;
+  }, [mesAtual, anoAtual]);
+
+  // ── Summaries ──
   const { total, pago, pendente } = useMemo(() => {
-    const t = despesas.reduce((s, d) => s + Number(d.valor), 0);
-    const p = despesas.reduce((s, d) => (d.pago ? s + Number(d.valor) : s), 0);
+    const t = despesasDoMes.reduce((s, d) => s + Number(d.valor), 0);
+    const p = despesasDoMes.reduce((s, d) => (isPago(d) ? s + Number(d.valor) : s), 0);
     return { total: t, pago: p, pendente: t - p };
-  }, [despesas]);
+  }, [despesasDoMes, isPago]);
 
-  // ── Pie chart data ────────────────────────────────────────────────
+  // ── Pie chart data ──
   const dadosGrafico = useMemo(() => {
     const mapa = {};
-    despesas.forEach((d) => {
+    despesasDoMes.forEach((d) => {
       if (!mapa[d.categoria]) mapa[d.categoria] = 0;
       mapa[d.categoria] += Number(d.valor);
     });
     return Object.entries(mapa).map(([name, value]) => ({ name, value }));
-  }, [despesas]);
+  }, [despesasDoMes]);
 
-  // ── Month navigation ──────────────────────────────────────────────
+  // ── Month navigation ──
   function mesAnterior() {
     if (mesAtual === 0) {
       setMesAtual(11);
@@ -137,7 +186,7 @@ export default function DespesasFixasTab() {
     cancelarEdicao();
   }
 
-  // ── Form helpers ──────────────────────────────────────────────────
+  // ── Form helpers ──
   function handleChange(e) {
     const { name, value, type, checked } = e.target;
     setForm((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
@@ -148,7 +197,7 @@ export default function DespesasFixasTab() {
     setEditandoId(null);
   }
 
-  // ── CRUD ──────────────────────────────────────────────────────────
+  // ── CRUD ──
   async function salvar(e) {
     e.preventDefault();
     if (!usuario) return;
@@ -159,16 +208,35 @@ export default function DespesasFixasTab() {
       categoria: form.categoria,
       valor: Number(form.valor),
       vencimento: form.vencimento ? Number(form.vencimento) : null,
-      pago: form.pago,
-      mes: mesAtual,
-      ano: anoAtual
+      recorrente: form.recorrente
     };
+
+    // Vigência final (opcional)
+    if (!form.recorrente) {
+      dados.mesFim = null;
+      dados.anoFim = null;
+    } else if (form.mesFim !== '' && form.anoFim !== '') {
+      dados.mesFim = Number(form.mesFim);
+      dados.anoFim = Number(form.anoFim);
+    } else {
+      dados.mesFim = null;
+      dados.anoFim = null;
+    }
 
     try {
       if (editandoId) {
         const docRef = doc(db, 'usuarios', usuario.uid, 'despesas_fixas', editandoId);
         await updateDoc(docRef, dados);
       } else {
+        // Nova despesa: definir mês/ano de início
+        dados.mesInicio = mesAtual;
+        dados.anoInicio = anoAtual;
+        // Manter campos legados para compatibilidade
+        dados.mes = mesAtual;
+        dados.ano = anoAtual;
+        dados.pago = false;
+        dados.pagoPorMes = {};
+
         const colRef = collection(db, 'usuarios', usuario.uid, 'despesas_fixas');
         await addDoc(colRef, dados);
       }
@@ -182,7 +250,14 @@ export default function DespesasFixasTab() {
     if (!usuario) return;
     try {
       const docRef = doc(db, 'usuarios', usuario.uid, 'despesas_fixas', despesa.id);
-      await updateDoc(docRef, { pago: !despesa.pago });
+      const chave = chaveMes(mesAtual, anoAtual);
+      const atualPago = isPago(despesa);
+
+      // Montar o mapa pagoPorMes atualizado
+      const pagoPorMesAtualizado = { ...(despesa.pagoPorMes || {}) };
+      pagoPorMesAtualizado[chave] = !atualPago;
+
+      await updateDoc(docRef, { pagoPorMes: pagoPorMesAtualizado });
     } catch (err) {
       console.error('Erro ao atualizar status:', err);
     }
@@ -194,7 +269,9 @@ export default function DespesasFixasTab() {
       categoria: despesa.categoria,
       valor: despesa.valor,
       vencimento: despesa.vencimento ?? '',
-      pago: despesa.pago
+      recorrente: despesa.recorrente !== false,
+      mesFim: despesa.mesFim ?? '',
+      anoFim: despesa.anoFim ?? ''
     });
     setEditandoId(despesa.id);
   }
@@ -210,7 +287,7 @@ export default function DespesasFixasTab() {
     }
   }
 
-  // ── Custom tooltip for pie chart ──────────────────────────────────
+  // ── Custom tooltip for pie chart ──
   function TooltipGrafico({ active, payload }) {
     if (!active || !payload || !payload.length) return null;
     const { name, value } = payload[0];
@@ -222,33 +299,45 @@ export default function DespesasFixasTab() {
     );
   }
 
-  // ── Render ────────────────────────────────────────────────────────
+  // ── Render ──
   return (
     <div className="tab-content">
-      {/* ── Month Navigation ──────────────────────────────────────── */}
+      {/* ── Month Navigation ── */}
       <div className="month-navigation">
         <button className="month-nav-btn" onClick={mesAnterior} aria-label="Mês anterior">‹</button>
         <h2 className="month-title">{MESES[mesAtual]} {anoAtual}</h2>
         <button className="month-nav-btn" onClick={mesSeguinte} aria-label="Próximo mês">›</button>
       </div>
 
-      {/* ── Summary Cards ─────────────────────────────────────────── */}
-      <div className="summary-cards">
-        <div className="summary-card">
-          <span className="summary-label">Total</span>
-          <span className="summary-value">{formatarMoeda(total)}</span>
+      {/* ── Summary Cards — Design Profissional ── */}
+      <div className="metric-cards-grid">
+        <div className="metric-card">
+          <div className="metric-card-accent" style={{ background: 'linear-gradient(135deg, #a29bfe, #6c5ce7)' }} />
+          <div className="metric-card-icon">💸</div>
+          <div className="metric-card-body">
+            <span className="metric-card-label">Total Fixo</span>
+            <span className="metric-card-value" style={{ color: '#a29bfe' }}>{formatarMoeda(total)}</span>
+          </div>
         </div>
-        <div className="summary-card card-green">
-          <span className="summary-label">Pago</span>
-          <span className="summary-value" style={{ color: '#00d4aa' }}>{formatarMoeda(pago)}</span>
+        <div className="metric-card">
+          <div className="metric-card-accent" style={{ background: 'linear-gradient(135deg, #00d4aa, #00b894)' }} />
+          <div className="metric-card-icon">✅</div>
+          <div className="metric-card-body">
+            <span className="metric-card-label">Pago</span>
+            <span className="metric-card-value" style={{ color: '#00d4aa' }}>{formatarMoeda(pago)}</span>
+          </div>
         </div>
-        <div className="summary-card card-red">
-          <span className="summary-label">Pendente</span>
-          <span className="summary-value" style={{ color: '#ff6b6b' }}>{formatarMoeda(pendente)}</span>
+        <div className="metric-card">
+          <div className="metric-card-accent" style={{ background: 'linear-gradient(135deg, #ff6b6b, #ee5a24)' }} />
+          <div className="metric-card-icon">⚠️</div>
+          <div className="metric-card-body">
+            <span className="metric-card-label">Pendente</span>
+            <span className="metric-card-value" style={{ color: '#ff6b6b' }}>{formatarMoeda(pendente)}</span>
+          </div>
         </div>
       </div>
 
-      {/* ── Registration / Edit Form ──────────────────────────────── */}
+      {/* ── Registration / Edit Form ── */}
       <form className="expense-form glass-card" onSubmit={salvar}>
         <h3 className="form-title">{editandoId ? 'Editar Despesa' : 'Nova Despesa Fixa'}</h3>
 
@@ -311,17 +400,53 @@ export default function DespesasFixasTab() {
             />
           </div>
 
-          <div className="form-group form-group-checkbox">
-            <label>
-              <input
-                name="pago"
-                type="checkbox"
-                checked={form.pago}
-                onChange={handleChange}
-              />
-              <span>Marcar como pago</span>
+          {/* Toggle Recorrente */}
+          <div className="form-group form-group-toggle">
+            <label className="toggle-label">
+              <span className="toggle-text">
+                🔁 Conta Recorrente
+                <span className="toggle-hint">
+                  {form.recorrente ? 'Aparece todo mês automaticamente' : 'Apenas neste mês'}
+                </span>
+              </span>
+              <div
+                className={`toggle-switch ${form.recorrente ? 'toggle-on' : ''}`}
+                onClick={() => setForm(prev => ({ ...prev, recorrente: !prev.recorrente }))}
+              >
+                <div className="toggle-knob" />
+              </div>
             </label>
           </div>
+
+          {/* Vigência final (só se recorrente) */}
+          {form.recorrente && (
+            <div className="form-group form-group-wide vigencia-final">
+              <label>📅 Vigência Final (opcional — deixe vazio para sem prazo)</label>
+              <div className="vigencia-inputs">
+                <select
+                  name="mesFim"
+                  value={form.mesFim}
+                  onChange={handleChange}
+                  className="vigencia-select"
+                >
+                  <option value="">Mês...</option>
+                  {MESES.map((m, i) => (
+                    <option key={i} value={i}>{m}</option>
+                  ))}
+                </select>
+                <input
+                  name="anoFim"
+                  type="number"
+                  min="2024"
+                  max="2040"
+                  placeholder="Ano"
+                  value={form.anoFim}
+                  onChange={handleChange}
+                  className="vigencia-ano-input"
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="form-actions">
@@ -336,70 +461,83 @@ export default function DespesasFixasTab() {
         </div>
       </form>
 
-      {/* ── Expense List ──────────────────────────────────────────── */}
+      {/* ── Expense List ── */}
       <div className="expense-list">
         <h3 className="section-title">
           Despesas de {MESES[mesAtual]} {anoAtual}
-          <span className="badge-count">{despesas.length}</span>
+          <span className="badge-count">{despesasDoMes.length}</span>
         </h3>
 
-        {despesas.length === 0 && (
+        {despesasDoMes.length === 0 && (
           <p className="empty-message">Nenhuma despesa registrada neste mês.</p>
         )}
 
-        {despesas.map((d) => (
-          <div
-            key={d.id}
-            className={`expense-item glass-card${d.pago ? ' expense-paid' : ''}`}
-          >
-            <div className="expense-info">
-              <div className="expense-header-row">
-                <span className="expense-descricao">{d.descricao}</span>
-                <span
-                  className="expense-categoria-badge"
-                  style={{ backgroundColor: CORES_CATEGORIAS[d.categoria] || '#b2bec3' }}
-                >
-                  {d.categoria}
-                </span>
-              </div>
-              <div className="expense-details-row">
-                <span className="expense-valor">{formatarMoeda(d.valor)}</span>
-                {d.vencimento && (
-                  <span className="expense-vencimento">Vence dia {d.vencimento}</span>
-                )}
-                {d.pago && <span className="expense-status-tag tag-pago">Pago</span>}
-                {!d.pago && <span className="expense-status-tag tag-pendente">Pendente</span>}
-              </div>
-            </div>
+        {despesasDoMes.map((d) => {
+          const pago = isPago(d);
+          const isRecorrente = d.recorrente !== false;
 
-            <div className="expense-actions">
-              <button
-                className={`action-btn${d.pago ? ' action-undo' : ' action-check'}`}
-                onClick={() => togglePago(d)}
-                title={d.pago ? 'Marcar como pendente' : 'Marcar como pago'}
-              >
-                {d.pago ? '↩' : '✓'}
-              </button>
-              <button
-                className="action-btn action-edit"
-                onClick={() => iniciarEdicao(d)}
-                title="Editar"
-              >
-                ✎
-              </button>
-              <button
-                className="action-btn action-delete"
-                onClick={() => excluir(d.id)}
-                title="Excluir"
-              >
-                ✕
-              </button>
+          return (
+            <div
+              key={d.id}
+              className={`expense-item glass-card${pago ? ' expense-paid' : ''}`}
+            >
+              <div className="expense-info">
+                <div className="expense-header-row">
+                  <span className="expense-descricao">
+                    {d.descricao}
+                    {isRecorrente && <span className="badge-recorrente" title="Conta recorrente">🔁</span>}
+                  </span>
+                  <span
+                    className="expense-categoria-badge"
+                    style={{ backgroundColor: CORES_CATEGORIAS[d.categoria] || '#b2bec3' }}
+                  >
+                    {d.categoria}
+                  </span>
+                </div>
+                <div className="expense-details-row">
+                  <span className="expense-valor">{formatarMoeda(d.valor)}</span>
+                  {d.vencimento && (
+                    <span className="expense-vencimento">Vence dia {d.vencimento}</span>
+                  )}
+                  {pago && <span className="expense-status-tag tag-pago">Pago</span>}
+                  {!pago && <span className="expense-status-tag tag-pendente">Pendente</span>}
+                </div>
+                {isRecorrente && d.mesFim != null && d.anoFim != null && d.mesFim !== '' && d.anoFim !== '' && (
+                  <div className="expense-vigencia-info">
+                    📅 Vigência até {MESES[Number(d.mesFim)]} {d.anoFim}
+                  </div>
+                )}
+              </div>
+
+              <div className="expense-actions">
+                <button
+                  className={`action-btn${pago ? ' action-undo' : ' action-check'}`}
+                  onClick={() => togglePago(d)}
+                  title={pago ? 'Marcar como pendente' : 'Marcar como pago'}
+                >
+                  {pago ? '↩' : '✓'}
+                </button>
+                <button
+                  className="action-btn action-edit"
+                  onClick={() => iniciarEdicao(d)}
+                  title="Editar"
+                >
+                  ✎
+                </button>
+                <button
+                  className="action-btn action-delete"
+                  onClick={() => excluir(d.id)}
+                  title="Excluir permanentemente"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      {/* ── Pie Chart ─────────────────────────────────────────────── */}
+      {/* ── Pie Chart ── */}
       {dadosGrafico.length > 0 && (
         <div className="chart-section glass-card">
           <h3 className="section-title">Distribuição por Categoria</h3>

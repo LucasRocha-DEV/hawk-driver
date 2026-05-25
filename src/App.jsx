@@ -5,12 +5,14 @@ import AnaliseTab from './components/AnaliseTab';
 import DespesasFixasTab from './components/DespesasFixasTab';
 import GastosVariaveisTab from './components/GastosVariaveisTab';
 import ObservacoesTab from './components/ObservacoesTab';
+import PatrimonioTab from './components/PatrimonioTab';
 
 const TABS = [
   { id: 'uber', label: 'Uber / Ganhos', icon: '🚗' },
   { id: 'analise', label: 'Análise', icon: '📊' },
   { id: 'despesas', label: 'Despesas Fixas', icon: '📋' },
   { id: 'gastos', label: 'Gastos Variáveis', icon: '💸' },
+  { id: 'patrimonio', label: 'Patrimônio', icon: '💰' },
   { id: 'notas', label: 'Observações', icon: '📝' }
 ];
 
@@ -148,6 +150,7 @@ export default function App() {
       case 'analise': return <AnaliseTab />;
       case 'despesas': return <DespesasFixasTab />;
       case 'gastos': return <GastosVariaveisTab />;
+      case 'patrimonio': return <PatrimonioTab />;
       case 'notas': return <ObservacoesTab />;
       default: return <UberTab />;
     }

@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import emailjs from '@emailjs/browser';
 import { db } from '../firebase';
 import {
   collection,
@@ -46,6 +47,11 @@ export default function ObservacoesTab() {
   const [filtroTag, setFiltroTag] = useState('Todas');
   const [busca, setBusca] = useState('');
 
+  // Lembrete states
+  const [lembreteData, setLembreteData] = useState('');
+  const [lembreteHora, setLembreteHora] = useState('');
+  const lembretesVerificados = useRef(false);
+
   // Firestore listener
   useEffect(() => {
     if (!usuario) return;
@@ -60,6 +66,66 @@ export default function ObservacoesTab() {
 
     return () => unsubscribe();
   }, [usuario]);
+
+  // ─── Verificador Diário de Lembretes (EmailJS) ───
+  useEffect(() => {
+    if (!usuario || notas.length === 0 || lembretesVerificados.current) return;
+    
+    const verificarEEnviarLembretes = async () => {
+      lembretesVerificados.current = true;
+      const hojeStr = new Date().toISOString().split('T')[0];
+      
+      // Data de amanhã
+      const amanhaDate = new Date();
+      amanhaDate.setDate(amanhaDate.getDate() + 1);
+      const amanhaStr = amanhaDate.toISOString().split('T')[0];
+
+      for (const nota of notas) {
+        if (nota.tag === 'Lembrete' && nota.lembreteData && !nota.notificado) {
+          
+          const isHoje = nota.lembreteData === hojeStr;
+          const isAmanha = nota.lembreteData === amanhaStr;
+          
+          if (isHoje || isAmanha) {
+            try {
+              // ATENÇÃO: Substitua pelos seus IDs reais do EmailJS (conta gratuita em emailjs.com)
+              const serviceId = 'service_1frjvqc'; 
+              const templateId = 'template_xfhgeoe'; 
+              const publicKey = 't13na8-V7eKws36yp';
+              
+              if (serviceId === 'YOUR_SERVICE_ID') {
+                 console.log('EmailJS não configurado. Lembrete que seria enviado:', nota.titulo);
+                 continue;
+              }
+
+              await emailjs.send(serviceId, templateId, {
+                to_name: usuario.displayName,
+                to_email: usuario.email,
+                titulo: nota.titulo || 'Lembrete do Hawk Driver',
+                mensagem: nota.texto,
+                data: nota.lembreteData,
+                hora: nota.lembreteHora || 'Não especificada',
+                tipo: isHoje ? 'HOJE' : 'AMANHÃ'
+              }, publicKey);
+
+              // Marcar como notificado se for o lembrete de HOJE
+              // (deixa o de amanhã livre para ser enviado amanhã também, se quiser)
+              if (isHoje) {
+                const docRef = doc(db, 'usuarios', usuario.uid, 'observacoes', nota.id);
+                await updateDoc(docRef, { notificado: true });
+              }
+              
+              console.log('Lembrete enviado com sucesso:', nota.titulo);
+            } catch (err) {
+              console.error('Erro ao enviar email de lembrete:', err);
+            }
+          }
+        }
+      }
+    };
+
+    verificarEEnviarLembretes();
+  }, [notas, usuario]);
 
   // Filtered & sorted notes
   const notasFiltradas = useMemo(() => {
@@ -97,6 +163,8 @@ export default function ObservacoesTab() {
     setTitulo('');
     setTexto('');
     setTag('');
+    setLembreteData('');
+    setLembreteHora('');
     setEditandoId(null);
   }
 
@@ -113,6 +181,8 @@ export default function ObservacoesTab() {
         titulo: titulo.trim(),
         texto: texto.trim(),
         tag,
+        lembreteData: tag === 'Lembrete' ? lembreteData : null,
+        lembreteHora: tag === 'Lembrete' ? lembreteHora : null,
         editadoEm: serverTimestamp()
       });
     } else {
@@ -120,7 +190,10 @@ export default function ObservacoesTab() {
         titulo: titulo.trim(),
         texto: texto.trim(),
         tag,
+        lembreteData: tag === 'Lembrete' ? lembreteData : null,
+        lembreteHora: tag === 'Lembrete' ? lembreteHora : null,
         fixado: false,
+        notificado: false,
         criadoEm: serverTimestamp(),
         editadoEm: null
       });
@@ -134,6 +207,8 @@ export default function ObservacoesTab() {
     setTitulo(nota.titulo || '');
     setTexto(nota.texto || '');
     setTag(nota.tag || '');
+    setLembreteData(nota.lembreteData || '');
+    setLembreteHora(nota.lembreteHora || '');
     setEditandoId(nota.id);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -196,7 +271,32 @@ export default function ObservacoesTab() {
             ))}
           </select>
 
-          <div style={{ display: 'flex', gap: '0.75rem' }}>
+          {/* Campos condicionais para Lembrete */}
+          {tag === 'Lembrete' && (
+            <div style={{ display: 'flex', gap: '1rem', background: 'rgba(255, 217, 61, 0.05)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255, 217, 61, 0.2)' }}>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '0.8rem', color: '#ffd93d' }}>📅 Data do Aviso (E-mail)</label>
+                <input
+                  type="date"
+                  value={lembreteData}
+                  onChange={(e) => setLembreteData(e.target.value)}
+                  className="input"
+                  required
+                />
+              </div>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '0.8rem', color: '#ffd93d' }}>⏰ Hora (Opcional)</label>
+                <input
+                  type="time"
+                  value={lembreteHora}
+                  onChange={(e) => setLembreteHora(e.target.value)}
+                  className="input"
+                />
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: '0.75rem', marginTop: '8px' }}>
             <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
               {editandoId ? 'Atualizar Nota' : 'Salvar Nota'}
             </button>
@@ -315,6 +415,18 @@ export default function ObservacoesTab() {
                     {nota.tag}
                   </span>
                 </div>
+
+                {/* Badge visual de Lembrete Data */}
+                {nota.tag === 'Lembrete' && nota.lembreteData && (
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(255, 217, 61, 0.1)', border: '1px solid rgba(255, 217, 61, 0.3)', padding: '4px 10px', borderRadius: '20px', marginBottom: '12px' }}>
+                    <span style={{ fontSize: '0.85rem' }}>⏰</span>
+                    <span style={{ fontSize: '0.8rem', color: '#ffd93d', fontWeight: 600 }}>
+                      Aviso: {new Date(nota.lembreteData + 'T12:00:00').toLocaleDateString('pt-BR')} 
+                      {nota.lembreteHora && ` às ${nota.lembreteHora}`}
+                    </span>
+                    {nota.notificado && <span style={{ fontSize: '0.7rem', color: '#00d4aa', marginLeft: '4px' }}>(Enviado)</span>}
+                  </div>
+                )}
 
                 {/* Texto */}
                 <p style={{

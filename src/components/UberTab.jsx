@@ -237,14 +237,14 @@ export default function UberTab() {
     if (horaInicio && horaFim) {
       const [hStart, mStart] = horaInicio.split(':').map(Number);
       let [hEnd, mEnd] = horaFim.split(':').map(Number);
-      
+
       let startMinutes = hStart * 60 + mStart;
       let endMinutes = hEnd * 60 + mEnd;
-      
+
       if (endMinutes < startMinutes) {
         endMinutes += 24 * 60; // Spans across midnight
       }
-      
+
       const diffMinutes = endMinutes - startMinutes;
       const h = Math.floor(diffMinutes / 60);
       const m = diffMinutes % 60;
@@ -368,14 +368,14 @@ export default function UberTab() {
     if (horaInicio && horaFim) {
       const [hStart, mStart] = horaInicio.split(':').map(Number);
       let [hEnd, mEnd] = horaFim.split(':').map(Number);
-      
+
       let startMinutes = hStart * 60 + mStart;
       let endMinutes = hEnd * 60 + mEnd;
-      
+
       if (endMinutes < startMinutes) {
         endMinutes += 24 * 60; // Spans across midnight
       }
-      
+
       const diffMinutes = endMinutes - startMinutes;
       const h = Math.floor(diffMinutes / 60);
       const m = diffMinutes % 60;
@@ -523,7 +523,7 @@ export default function UberTab() {
   // Group records by month for easier overview
   const registrosAgrupadosPorMes = useMemo(() => {
     const grupos = {};
-    
+
     historicoRegistros.forEach(r => {
       const [ano, mes] = r.id.split('-');
       const chaveMes = `${ano}-${mes}`;
@@ -531,7 +531,7 @@ export default function UberTab() {
         const dataObjeto = new Date(r.id + 'T12:00:00');
         const nomeMesRaw = dataObjeto.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
         const nomeMes = nomeMesRaw.charAt(0).toUpperCase() + nomeMesRaw.slice(1);
-        
+
         grupos[chaveMes] = {
           chave: chaveMes,
           nomeMes,
@@ -543,11 +543,11 @@ export default function UberTab() {
           totalViagens: 0
         };
       }
-      
+
       const rBruto = r.totalBruto || 0;
       const rGastos = r.gastosGerais || 0;
       const rLiquido = r.totalLiquido != null ? r.totalLiquido : rBruto - rGastos;
-      
+
       grupos[chaveMes].registros.push(r);
       grupos[chaveMes].totalBruto += rBruto;
       grupos[chaveMes].totalGastos += rGastos;
@@ -555,7 +555,7 @@ export default function UberTab() {
       grupos[chaveMes].totalKm += r.km || 0;
       grupos[chaveMes].totalViagens += r.viagens || 0;
     });
-    
+
     return Object.entries(grupos).sort((a, b) => b[0].localeCompare(a[0])).map(([_, val]) => val);
   }, [historicoRegistros]);
 
@@ -806,7 +806,7 @@ export default function UberTab() {
       <div className="section-card">
         <div className="flex-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
           <h2 className="section-title" style={{ margin: 0 }}>🏦 Banco Caixinhas — {dataSelecionada.toLocaleDateString('pt-BR')}</h2>
-          <button 
+          <button
             className="caixinhas-config-toggle"
             onClick={() => setMostrarConfig(!mostrarConfig)}
           >
@@ -821,11 +821,11 @@ export default function UberTab() {
               <div className="config-group">
                 <label className="config-label">🚨 Emergência (% Bruto)</label>
                 <div className="config-input-wrapper">
-                  <input 
-                    type="number" 
-                    className="config-input" 
-                    value={pctEmergencia} 
-                    onChange={e => setPctEmergencia(e.target.value)} 
+                  <input
+                    type="number"
+                    className="config-input"
+                    value={pctEmergencia}
+                    onChange={e => setPctEmergencia(e.target.value)}
                     min="0" max="100" required
                   />
                   <span className="config-symbol">%</span>
@@ -834,11 +834,11 @@ export default function UberTab() {
               <div className="config-group">
                 <label className="config-label">🔧 Manutenção (% Bruto)</label>
                 <div className="config-input-wrapper">
-                  <input 
-                    type="number" 
-                    className="config-input" 
-                    value={pctManutencao} 
-                    onChange={e => setPctManutencao(e.target.value)} 
+                  <input
+                    type="number"
+                    className="config-input"
+                    value={pctManutencao}
+                    onChange={e => setPctManutencao(e.target.value)}
                     min="0" max="100" required
                   />
                   <span className="config-symbol">%</span>
@@ -847,11 +847,11 @@ export default function UberTab() {
               <div className="config-group">
                 <label className="config-label">🏢 Empresa (% Líquido)</label>
                 <div className="config-input-wrapper">
-                  <input 
-                    type="number" 
-                    className="config-input" 
-                    value={pctEmpresa} 
-                    onChange={e => setPctEmpresa(e.target.value)} 
+                  <input
+                    type="number"
+                    className="config-input"
+                    value={pctEmpresa}
+                    onChange={e => setPctEmpresa(e.target.value)}
                     min="0" max="100" required
                   />
                   <span className="config-symbol">%</span>
@@ -860,11 +860,11 @@ export default function UberTab() {
               <div className="config-group">
                 <label className="config-label">💸 Livre - Lazer (% Líquido)</label>
                 <div className="config-input-wrapper">
-                  <input 
-                    type="number" 
-                    className="config-input" 
-                    value={pctLivre} 
-                    onChange={e => setPctLivre(e.target.value)} 
+                  <input
+                    type="number"
+                    className="config-input"
+                    value={pctLivre}
+                    onChange={e => setPctLivre(e.target.value)}
                     min="0" max="100" required
                   />
                   <span className="config-symbol">%</span>
@@ -873,11 +873,11 @@ export default function UberTab() {
               <div className="config-group">
                 <label className="config-label">💳 Contas (% Líquido)</label>
                 <div className="config-input-wrapper">
-                  <input 
-                    type="number" 
-                    className="config-input" 
-                    value={pctContas} 
-                    onChange={e => setPctContas(e.target.value)} 
+                  <input
+                    type="number"
+                    className="config-input"
+                    value={pctContas}
+                    onChange={e => setPctContas(e.target.value)}
                     min="0" max="100" required
                   />
                   <span className="config-symbol">%</span>
@@ -1189,8 +1189,8 @@ export default function UberTab() {
         <div className="historico-header-row">
           <h2 className="section-title" style={{ margin: 0 }}>📜 Histórico de Registros</h2>
           {historicoRegistros.length > 0 && (
-            <button 
-              className="btn-maximize" 
+            <button
+              className="btn-maximize"
               onClick={() => setHistoricoExpandido(!historicoExpandido)}
             >
               {historicoExpandido ? '↕️ Minimizar Histórico' : '↕️ Maximizar Histórico'}
@@ -1200,27 +1200,27 @@ export default function UberTab() {
 
         {historicoRegistros.length > 0 ? (
           !historicoExpandido ? (
-            <div 
-              className="month-group-card" 
+            <div
+              className="month-group-card"
               style={{ cursor: 'pointer', padding: '20px', textAlign: 'center', background: 'rgba(255, 255, 255, 0.02)' }}
               onClick={() => setHistoricoExpandido(true)}
             >
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', margin: 0 }}>
-                📂 O histórico de registros está minimizado. 
+                📂 O histórico de registros está minimizado.
                 <strong style={{ color: 'var(--purple)', marginLeft: '6px' }}>Clique para Maximizar / Visualizar</strong>.
               </p>
             </div>
           ) : (
             <div className="historico-expandido-container">
               {registrosAgrupadosPorMes.map((grupo, idx) => {
-                const isExpanded = mesesExpandidos[grupo.chave] !== undefined 
-                  ? mesesExpandidos[grupo.chave] 
+                const isExpanded = mesesExpandidos[grupo.chave] !== undefined
+                  ? mesesExpandidos[grupo.chave]
                   : idx === 0; // Most recent month expanded by default
 
                 return (
                   <div key={grupo.chave} className="month-group-card">
-                    <div 
-                      className="month-group-header" 
+                    <div
+                      className="month-group-header"
                       onClick={() => toggleMesExpandido(grupo.chave)}
                     >
                       <div className="month-group-title">
