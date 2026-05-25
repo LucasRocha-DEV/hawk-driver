@@ -4,46 +4,71 @@ import { db } from '../firebase';
 import {
   doc,
   setDoc,
+  collection,
   onSnapshot,
-  serverTimestamp
+  query,
+  orderBy,
+  addDoc,
+  serverTimestamp,
+  increment,
+  limit
 } from 'firebase/firestore';
 
 const CAIXINHAS = [
-  { id: 'emergencia', nome: 'Emergência', emoji: '🚨', cor: '#ffd93d', corDim: 'rgba(255, 217, 61, 0.12)' },
-  { id: 'manutencao', nome: 'Manutenção', emoji: '🔧', cor: '#ff6b6b', corDim: 'rgba(255, 107, 107, 0.12)' },
-  { id: 'empresa', nome: 'Empresa', emoji: '🏢', cor: '#6c5ce7', corDim: 'rgba(108, 92, 231, 0.12)' },
-  { id: 'livre', nome: 'Livre / Lazer', emoji: '💸', cor: '#00b894', corDim: 'rgba(0, 184, 148, 0.12)' },
-  { id: 'contas', nome: 'Contas', emoji: '💳', cor: '#0984e3', corDim: 'rgba(9, 132, 227, 0.12)' }
+  { id: 'emergencia', nome: 'Emergência', emoji: '🚨', cor: '#ffd93d' },
+  { id: 'manutencao', nome: 'Manutenção', emoji: '🔧', cor: '#ff6b6b' },
+  { id: 'empresa', nome: 'Empresa', emoji: '🏢', cor: '#6c5ce7' },
+  { id: 'livre', nome: 'Livre / Lazer', emoji: '💸', cor: '#00b894' },
+  { id: 'contas', nome: 'Contas', emoji: '💳', cor: '#0984e3' }
 ];
 
 function formatarMoeda(valor) {
   return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-function formatarData(ts) {
-  if (!ts || !ts.seconds) return 'Nunca atualizado';
-  const d = new Date(ts.seconds * 1000);
-  return d.toLocaleDateString('pt-BR') + ' às ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+function formatarData(dataStr) {
+  if (!dataStr) return '';
+  const d = new Date(dataStr + 'T12:00:00');
+  return d.toLocaleDateString('pt-BR');
 }
 
 export default function PatrimonioTab() {
   const { usuario } = useAuth();
 
   const [saldos, setSaldos] = useState({});
-  const [editando, setEditando] = useState(null);
-  const [valorEditando, setValorEditando] = useState('');
+  const [transacoes, setTransacoes] = useState([]);
+  
+  // UI States
+  const [mostrarModal, setMostrarModal] = useState(false);
+  const [tipoTransacao, setTipoTransacao] = useState('ENTRADA'); // ENTRADA ou SAIDA
+  const [contaSelecionada, setContaSelecionada] = useState('');
+  const [valorTransacao, setValorTransacao] = useState('');
+  const [motivoTransacao, setMotivoTransacao] = useState('');
+  const [dataTransacao, setDataTransacao] = useState(new Date().toISOString().split('T')[0]);
   const [salvando, setSalvando] = useState(false);
+  const [extratoAberto, setExtratoAberto] = useState(null); // id da caixinha para mostrar extrato
 
-  // Firestore listener
+  // Firestore listeners
   useEffect(() => {
     if (!usuario) return;
     const docRef = doc(db, 'usuarios', usuario.uid, 'saldos', 'atual');
-    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+    const unsubSaldos = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         setSaldos(docSnap.data());
       }
     });
-    return () => unsubscribe();
+
+    const transRef = collection(db, 'usuarios', usuario.uid, 'transacoes_patrimonio');
+    const qTrans = query(transRef, orderBy('criadoEm', 'desc'), limit(100));
+    const unsubTrans = onSnapshot(qTrans, (snap) => {
+      const lista = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setTransacoes(lista);
+    });
+
+    return () => {
+      unsubSaldos();
+      unsubTrans();
+    };
   }, [usuario]);
 
   // Totais
@@ -60,47 +85,74 @@ export default function PatrimonioTab() {
     };
   }, [saldos]);
 
-  // Save
-  const salvarSaldo = async (campo, valor) => {
-    if (!usuario) return;
+  // Extrato
+  const getExtrato = (caixinhaId) => {
+    return transacoes.filter(t => t.caixinhaId === caixinhaId);
+  };
+
+  const abrirModal = (caixinhaId, tipo) => {
+    setContaSelecionada(caixinhaId);
+    setTipoTransacao(tipo);
+    setValorTransacao('');
+    setMotivoTransacao('');
+    setDataTransacao(new Date().toISOString().split('T')[0]);
+    setMostrarModal(true);
+  };
+
+  const registrarTransacao = async (e) => {
+    e.preventDefault();
+    if (!usuario || !valorTransacao || !contaSelecionada) return;
     setSalvando(true);
+
     try {
-      const docRef = doc(db, 'usuarios', usuario.uid, 'saldos', 'atual');
-      await setDoc(docRef, {
-        [campo]: parseFloat(valor) || 0,
+      let val = parseFloat(valorTransacao);
+      if (tipoTransacao === 'SAIDA') {
+        val = -Math.abs(val);
+      } else {
+        val = Math.abs(val);
+      }
+
+      let nomeConta = 'Conta Principal';
+      if (contaSelecionada !== 'saldoConta') {
+        const c = CAIXINHAS.find(x => x.id === contaSelecionada);
+        if (c) nomeConta = c.nome;
+      }
+
+      // 1. Gravar transação
+      const transacoesRef = collection(db, 'usuarios', usuario.uid, 'transacoes_patrimonio');
+      await addDoc(transacoesRef, {
+        caixinhaId: contaSelecionada,
+        caixinhaNome: nomeConta,
+        tipo: tipoTransacao,
+        valor: Math.abs(val), // Guarda sempre positivo no log
+        motivo: motivoTransacao.trim() || (tipoTransacao === 'SAIDA' ? 'Retirada Manual' : 'Depósito Manual'),
+        data: dataTransacao,
+        criadoEm: serverTimestamp()
+      });
+
+      // 2. Atualizar saldo
+      const saldoRef = doc(db, 'usuarios', usuario.uid, 'saldos', 'atual');
+      await setDoc(saldoRef, {
+        [contaSelecionada]: increment(val),
         atualizadoEm: serverTimestamp()
       }, { merge: true });
+
+      setMostrarModal(false);
     } catch (err) {
-      console.error('Erro ao salvar saldo:', err);
+      console.error('Erro ao registrar transação:', err);
+      alert('Falha ao registrar transação.');
     }
     setSalvando(false);
-    setEditando(null);
-    setValorEditando('');
-  };
-
-  const iniciarEdicao = (campo, valorAtual) => {
-    setEditando(campo);
-    setValorEditando(String(valorAtual || ''));
-  };
-
-  const cancelarEdicao = () => {
-    setEditando(null);
-    setValorEditando('');
   };
 
   return (
     <div className="tab-content">
       {/* Header */}
       <div className="patrimonio-header">
-        <h2 className="patrimonio-titulo">💰 Meu Patrimônio</h2>
+        <h2 className="patrimonio-titulo">💰 Banco & Patrimônio</h2>
         <p className="patrimonio-subtitulo">
-          Acompanhe em tempo real o saldo da sua conta e de cada caixinha
+          Acompanhe em tempo real o fluxo de entradas e saídas de suas reservas.
         </p>
-        {saldos.atualizadoEm && (
-          <span className="patrimonio-atualizado">
-            Última atualização: {formatarData(saldos.atualizadoEm)}
-          </span>
-        )}
       </div>
 
       {/* Patrimônio Total */}
@@ -117,164 +169,157 @@ export default function PatrimonioTab() {
         </div>
       </div>
 
-      {/* Saldo da Conta */}
+      {/* Saldo da Conta Bancária */}
       <div className="patrimonio-section">
-        <h3 className="patrimonio-section-title">🏦 Saldo da Conta Bancária</h3>
-        <div className="saldo-card saldo-card-conta">
-          <div className="saldo-card-left">
-            <span className="saldo-card-emoji">🏦</span>
-            <div className="saldo-card-info">
-              <span className="saldo-card-nome">Conta Principal</span>
-              <span className="saldo-card-valor" style={{ color: '#00d4aa' }}>
-                {formatarMoeda(saldos.saldoConta)}
-              </span>
+        <h3 className="patrimonio-section-title">🏦 Saldo da Conta Bancária Livre</h3>
+        <div className="saldo-card saldo-card-conta" style={{ flexWrap: 'wrap' }}>
+          <div className="saldo-card-left" style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span className="saldo-card-emoji">🏦</span>
+              <div className="saldo-card-info">
+                <span className="saldo-card-nome">Conta Principal</span>
+                <span className="saldo-card-valor" style={{ color: '#00d4aa' }}>
+                  {formatarMoeda(saldos.saldoConta)}
+                </span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button className="btn-sm" onClick={() => abrirModal('saldoConta', 'SAIDA')} style={{ background: 'rgba(255,107,107,0.15)', color: '#ff6b6b' }}>- Retirar</button>
+              <button className="btn-sm" onClick={() => abrirModal('saldoConta', 'ENTRADA')} style={{ background: 'rgba(0,212,170,0.15)', color: '#00d4aa' }}>+ Depósito</button>
+              <button className="btn-sm" onClick={() => setExtratoAberto(extratoAberto === 'saldoConta' ? null : 'saldoConta')}>📋 Extrato</button>
             </div>
           </div>
-          <div className="saldo-card-right">
-            {editando === 'saldoConta' ? (
-              <div className="saldo-edit-inline">
-                <input
-                  type="number"
-                  step="0.01"
-                  className="saldo-edit-input"
-                  value={valorEditando}
-                  onChange={e => setValorEditando(e.target.value)}
-                  autoFocus
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') salvarSaldo('saldoConta', valorEditando);
-                    if (e.key === 'Escape') cancelarEdicao();
-                  }}
-                />
-                <button
-                  className="saldo-btn-save"
-                  onClick={() => salvarSaldo('saldoConta', valorEditando)}
-                  disabled={salvando}
-                >
-                  ✓
-                </button>
-                <button className="saldo-btn-cancel" onClick={cancelarEdicao}>✕</button>
-              </div>
-            ) : (
-              <button
-                className="saldo-btn-edit"
-                onClick={() => iniciarEdicao('saldoConta', saldos.saldoConta)}
-              >
-                ✎ Atualizar
-              </button>
-            )}
-          </div>
+          
+          {extratoAberto === 'saldoConta' && (
+            <div style={{ width: '100%', marginTop: '16px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '16px' }}>
+              <h4 style={{ margin: '0 0 12px 0', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Histórico de Transações</h4>
+              {getExtrato('saldoConta').length === 0 ? (
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Nenhuma transação recente.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {getExtrato('saldoConta').map(t => (
+                    <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', background: 'rgba(255,255,255,0.03)', padding: '10px', borderRadius: '8px', fontSize: '0.85rem' }}>
+                      <div>
+                        <span style={{ color: t.tipo === 'ENTRADA' ? '#00d4aa' : '#ff6b6b', fontWeight: 'bold', marginRight: '8px' }}>{t.tipo === 'ENTRADA' ? '↓' : '↑'}</span>
+                        <span>{t.motivo}</span>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>{formatarData(t.data)}</div>
+                      </div>
+                      <span style={{ fontWeight: 'bold', color: t.tipo === 'ENTRADA' ? '#00d4aa' : '#ff6b6b' }}>
+                        {t.tipo === 'ENTRADA' ? '+' : '-'}{formatarMoeda(t.valor)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
       {/* Caixinhas */}
       <div className="patrimonio-section">
-        <h3 className="patrimonio-section-title">📦 Saldos das Caixinhas</h3>
+        <h3 className="patrimonio-section-title">📦 Caixinhas de Distribuição</h3>
         <div className="caixinhas-saldo-grid">
           {CAIXINHAS.map(cx => {
             const valor = Number(saldos[cx.id]) || 0;
-            const isEditing = editando === cx.id;
+            const isOpen = extratoAberto === cx.id;
 
             return (
               <div
                 key={cx.id}
                 className="saldo-card"
-                style={{ borderColor: cx.cor + '33' }}
+                style={{ borderColor: cx.cor + '33', flexDirection: 'column', alignItems: 'stretch' }}
               >
                 <div className="saldo-card-accent" style={{ background: cx.cor }} />
-                <div className="saldo-card-left">
-                  <span className="saldo-card-emoji">{cx.emoji}</span>
-                  <div className="saldo-card-info">
-                    <span className="saldo-card-nome">{cx.nome}</span>
-                    <span className="saldo-card-valor" style={{ color: cx.cor }}>
-                      {formatarMoeda(valor)}
-                    </span>
+                
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                  <div className="saldo-card-left">
+                    <span className="saldo-card-emoji">{cx.emoji}</span>
+                    <div className="saldo-card-info">
+                      <span className="saldo-card-nome">{cx.nome}</span>
+                      <span className="saldo-card-valor" style={{ color: cx.cor }}>
+                        {formatarMoeda(valor)}
+                      </span>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button className="btn-sm" onClick={() => abrirModal(cx.id, 'SAIDA')} style={{ background: 'rgba(255,107,107,0.1)', color: '#ff6b6b', padding: '6px 10px' }}>- Retirar</button>
+                    <button className="btn-sm" onClick={() => setExtratoAberto(isOpen ? null : cx.id)} style={{ padding: '6px 10px' }}>
+                      📋 Extrato
+                    </button>
                   </div>
                 </div>
-                <div className="saldo-card-right">
-                  {isEditing ? (
-                    <div className="saldo-edit-inline">
-                      <input
-                        type="number"
-                        step="0.01"
-                        className="saldo-edit-input"
-                        value={valorEditando}
-                        onChange={e => setValorEditando(e.target.value)}
-                        autoFocus
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') salvarSaldo(cx.id, valorEditando);
-                          if (e.key === 'Escape') cancelarEdicao();
-                        }}
-                      />
-                      <button
-                        className="saldo-btn-save"
-                        onClick={() => salvarSaldo(cx.id, valorEditando)}
-                        disabled={salvando}
-                      >
-                        ✓
-                      </button>
-                      <button className="saldo-btn-cancel" onClick={cancelarEdicao}>✕</button>
-                    </div>
-                  ) : (
-                    <button
-                      className="saldo-btn-edit"
-                      onClick={() => iniciarEdicao(cx.id, saldos[cx.id])}
-                    >
-                      ✎
-                    </button>
-                  )}
-                </div>
+
+                {isOpen && (
+                  <div style={{ marginTop: '16px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '16px' }}>
+                    <h4 style={{ margin: '0 0 12px 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Histórico da Caixinha</h4>
+                    {getExtrato(cx.id).length === 0 ? (
+                      <p style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.3)' }}>Nenhuma transação recente.</p>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '200px', overflowY: 'auto' }}>
+                        {getExtrato(cx.id).map(t => (
+                          <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', background: 'rgba(255,255,255,0.02)', padding: '8px', borderRadius: '6px', fontSize: '0.8rem' }}>
+                            <div>
+                              <span style={{ color: t.tipo === 'ENTRADA' ? cx.cor : '#ff6b6b', fontWeight: 'bold', marginRight: '6px' }}>{t.tipo === 'ENTRADA' ? '+' : '-'}</span>
+                              <span>{t.motivo}</span>
+                              <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>{formatarData(t.data)}</div>
+                            </div>
+                            <span style={{ fontWeight: 'bold', color: t.tipo === 'ENTRADA' ? cx.cor : '#ff6b6b' }}>
+                              {formatarMoeda(t.valor)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
       </div>
 
-      {/* Barra visual de distribuição */}
-      {totais.patrimonio > 0 && (
-        <div className="patrimonio-section">
-          <h3 className="patrimonio-section-title">📊 Distribuição do Patrimônio</h3>
-          <div className="patrimonio-dist-bar">
-            {totais.saldoConta > 0 && (
-              <div
-                className="patrimonio-dist-segment"
-                style={{
-                  width: `${(totais.saldoConta / totais.patrimonio) * 100}%`,
-                  background: '#00d4aa'
-                }}
-                title={`Conta: ${formatarMoeda(totais.saldoConta)}`}
-              />
-            )}
-            {CAIXINHAS.map(cx => {
-              const val = Number(saldos[cx.id]) || 0;
-              if (val <= 0) return null;
-              return (
-                <div
-                  key={cx.id}
-                  className="patrimonio-dist-segment"
-                  style={{
-                    width: `${(val / totais.patrimonio) * 100}%`,
-                    background: cx.cor
-                  }}
-                  title={`${cx.nome}: ${formatarMoeda(val)}`}
+      {/* Modal de Transação */}
+      {mostrarModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(5px)',
+          display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999
+        }}>
+          <div className="card" style={{ width: '90%', maxWidth: '400px', border: `1px solid ${tipoTransacao === 'ENTRADA' ? '#00d4aa' : '#ff6b6b'}` }}>
+            <h3 style={{ marginTop: 0, color: tipoTransacao === 'ENTRADA' ? '#00d4aa' : '#ff6b6b' }}>
+              {tipoTransacao === 'ENTRADA' ? '➕ Novo Depósito' : '➖ Nova Retirada'}
+            </h3>
+            <form onSubmit={registrarTransacao} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div className="form-group">
+                <label className="form-label">Valor (R$)</label>
+                <input 
+                  type="number" step="0.01" min="0.01" className="form-input" required autoFocus
+                  value={valorTransacao} onChange={e => setValorTransacao(e.target.value)} 
                 />
-              );
-            })}
-          </div>
-          <div className="patrimonio-dist-legend">
-            <span className="patrimonio-legend-item">
-              <span className="patrimonio-legend-dot" style={{ background: '#00d4aa' }} />
-              Conta ({((totais.saldoConta / totais.patrimonio) * 100).toFixed(0)}%)
-            </span>
-            {CAIXINHAS.map(cx => {
-              const val = Number(saldos[cx.id]) || 0;
-              if (val <= 0) return null;
-              return (
-                <span key={cx.id} className="patrimonio-legend-item">
-                  <span className="patrimonio-legend-dot" style={{ background: cx.cor }} />
-                  {cx.nome} ({((val / totais.patrimonio) * 100).toFixed(0)}%)
-                </span>
-              );
-            })}
+              </div>
+              <div className="form-group">
+                <label className="form-label">Motivo / Observação</label>
+                <input 
+                  type="text" className="form-input" required
+                  placeholder={tipoTransacao === 'SAIDA' ? 'Ex: Pagar mecânico...' : 'Ex: Dinheiro extra...'}
+                  value={motivoTransacao} onChange={e => setMotivoTransacao(e.target.value)} 
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Data</label>
+                <input 
+                  type="date" className="form-input" required
+                  value={dataTransacao} onChange={e => setDataTransacao(e.target.value)} 
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                <button type="submit" className="btn-primary" style={{ flex: 1, background: tipoTransacao === 'ENTRADA' ? '#00d4aa' : '#ff6b6b', color: '#000' }} disabled={salvando}>
+                  {salvando ? 'Processando...' : 'Confirmar'}
+                </button>
+                <button type="button" className="btn-secondary" onClick={() => setMostrarModal(false)}>Cancelar</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -283,8 +328,7 @@ export default function PatrimonioTab() {
       <div className="patrimonio-dica">
         <span className="patrimonio-dica-icon">💡</span>
         <p>
-          Atualize seus saldos regularmente para ter um panorama fiel da sua saúde financeira.
-          Os valores aqui não são calculados automaticamente — você registra o saldo real de cada caixinha e da conta.
+          Agora suas caixinhas são atualizadas automaticamente sempre que você confirmar o envio na aba de Ganhos. Use os botões acima apenas para saques ou depósitos manuais extras!
         </p>
       </div>
     </div>

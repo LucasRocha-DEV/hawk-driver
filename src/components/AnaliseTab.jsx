@@ -2,14 +2,13 @@ import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
-// Helper: Format to BRL currency safely
 function formatarMoeda(valor) {
   const v = Number(valor);
   return (isNaN(v) ? 0 : v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-// Helper: Parse hour string (e.g. "8h30" to 8.5) safely
 function parsarHoras(horarioStr) {
   if (!horarioStr || typeof horarioStr !== 'string') return 0;
   const match = horarioStr.match(/(\d+)h(\d*)/);
@@ -22,50 +21,35 @@ function parsarHoras(horarioStr) {
   return isNaN(f) ? 0 : f;
 }
 
-// Helper: Classify the shift based on start and end time safely
-function classificarTurno(horaInicio, horaFim) {
-  if (!horaInicio || !horaFim || typeof horaInicio !== 'string' || typeof horaFim !== 'string') {
-    return 'Não Informado';
-  }
-  const partsStart = horaInicio.split(':');
-  const partsEnd = horaFim.split(':');
-  if (partsStart.length < 2 || partsEnd.length < 2) return 'Não Informado';
-  
-  const hStart = Number(partsStart[0]);
-  const hEnd = Number(partsEnd[0]);
-  if (isNaN(hStart) || isNaN(hEnd)) return 'Não Informado';
-  
-  const obterNomePeriodo = (h) => {
-    if (h >= 0 && h < 6) return 'Madrugada 🌙';
-    if (h >= 6 && h < 12) return 'Manhã 🌅';
-    if (h >= 12 && h < 18) return 'Tarde ☀️';
-    return 'Noite 🌌';
-  };
-  
-  const pStart = obterNomePeriodo(hStart);
-  const pEnd = obterNomePeriodo(hEnd);
-  
-  if (pStart === pEnd) return pStart;
-  const pStartClean = pStart.split(' ')[0];
-  const pEndClean = pEnd.split(' ')[0];
-  return `${pStartClean} ➔ ${pEndClean} 🌓`;
+function getDiaSemanaNome(diaIdx) {
+  const nomes = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+  return nomes[diaIdx];
 }
 
-// Helper: Detect weekend safely
-function isFimDeSemana(dateStr) {
-  if (!dateStr || typeof dateStr !== 'string' || !dateStr.includes('-')) return false;
-  const d = new Date(dateStr + 'T12:00:00');
-  if (isNaN(d.getTime())) return false;
-  const diaSemana = d.getDay();
-  return diaSemana === 0 || diaSemana === 6;
+function classificarTurno(horaInicio, horaFim) {
+  if (!horaInicio || !horaFim) return 'Não Informado';
+  const hS = Number(horaInicio.split(':')[0]);
+  const hE = Number(horaFim.split(':')[0]);
+  if (isNaN(hS) || isNaN(hE)) return 'Não Informado';
+
+  const getNome = (h) => {
+    if (h >= 0 && h < 6) return 'Madrugada';
+    if (h >= 6 && h < 12) return 'Manhã';
+    if (h >= 12 && h < 18) return 'Tarde';
+    return 'Noite';
+  };
+  
+  const s = getNome(hS);
+  const e = getNome(hE);
+  if (s === e) return s;
+  return `${s} ➔ ${e}`;
 }
 
 export default function AnaliseTab() {
   const { usuario } = useAuth();
   const [registrosMap, setRegistrosMap] = useState({});
-  const [filtroMes, setFiltroMes] = useState('todos'); // 'todos' ou 'YYYY-MM'
+  const [filtroMes, setFiltroMes] = useState('todos');
 
-  // ─── Real-time Firestore listener ───
   useEffect(() => {
     if (!usuario) return;
     const registrosRef = collection(db, 'usuarios', usuario.uid, 'registros');
@@ -81,222 +65,134 @@ export default function AnaliseTab() {
     return () => unsubscribe();
   }, [usuario]);
 
-  // ─── Generate list of available months for filter safely ───
   const mesesDisponiveis = useMemo(() => {
     const chaves = Object.keys(registrosMap);
     const mesesSet = new Set();
     chaves.forEach(chave => {
-      if (chave && typeof chave === 'string') {
+      if (chave && chave.includes('-')) {
         const parts = chave.split('-');
         if (parts.length >= 2) {
-          const ano = parts[0];
-          const mes = parts[1];
-          // Ensure it's a valid YYYY-MM prefix
-          if (ano.length === 4 && mes.length === 2 && !isNaN(Number(ano)) && !isNaN(Number(mes))) {
-            mesesSet.add(`${ano}-${mes}`);
-          }
+          mesesSet.add(`${parts[0]}-${parts[1]}`);
         }
       }
     });
     return Array.from(mesesSet).sort((a, b) => b.localeCompare(a));
   }, [registrosMap]);
 
-  // ─── Filtered registers array safely ───
   const registrosFiltrados = useMemo(() => {
-    const todos = Object.values(registrosMap).filter(r => r && r.id && typeof r.id === 'string');
+    const todos = Object.values(registrosMap).filter(r => r && r.id);
     if (filtroMes === 'todos') return todos;
     return todos.filter(r => r.id.startsWith(filtroMes));
   }, [registrosMap, filtroMes]);
 
-  // ─── 1. SHIFT/TURN ANALYSIS ───
+  // ANÁLISE POR DIA DA SEMANA (Comparar Segunda x Segunda, etc)
+  const analiseDiasDaSemana = useMemo(() => {
+    const diasArray = Array(7).fill(0).map((_, i) => ({
+      idx: i,
+      nome: getDiaSemanaNome(i),
+      shortNome: getDiaSemanaNome(i).slice(0, 3),
+      qtd: 0,
+      totalLiquido: 0,
+      totalHoras: 0
+    }));
+
+    registrosFiltrados.forEach(r => {
+      const d = new Date(r.id + 'T12:00:00');
+      if (isNaN(d.getTime())) return;
+      
+      const diaSemana = d.getDay(); // 0 a 6
+      const liq = r.totalLiquido != null ? Number(r.totalLiquido) : (Number(r.totalBruto||0) - Number(r.gastosGerais||0));
+      const hr = parsarHoras(r.horarioRodado);
+
+      diasArray[diaSemana].qtd += 1;
+      diasArray[diaSemana].totalLiquido += liq;
+      diasArray[diaSemana].totalHoras += hr;
+    });
+
+    return diasArray.map(d => ({
+      ...d,
+      mediaDiaria: d.qtd > 0 ? d.totalLiquido / d.qtd : 0,
+      ganhoHora: d.totalHoras > 0 ? d.totalLiquido / d.totalHoras : 0
+    }));
+  }, [registrosFiltrados]);
+
+  // ANÁLISE DE TURNOS
   const analiseTurnos = useMemo(() => {
     const turnos = {};
-    
     registrosFiltrados.forEach(r => {
       const turno = classificarTurno(r.horaInicio, r.horaFim);
       if (turno === 'Não Informado') return;
       
-      if (!turnos[turno]) {
-        turnos[turno] = {
-          nome: turno,
-          dias: 0,
-          totalLiquido: 0,
-          totalBruto: 0,
-          totalHoras: 0,
-          totalKm: 0
-        };
-      }
+      if (!turnos[turno]) turnos[turno] = { nome: turno, qtd: 0, totalLiquido: 0, totalHoras: 0, somaInicio: 0, somaFim: 0 };
       
-      const bruto = Number(r.totalBruto) || 0;
-      const gastos = Number(r.gastosGerais) || 0;
-      const liquido = r.totalLiquido != null ? Number(r.totalLiquido) : bruto - gastos;
-      const horas = parsarHoras(r.horarioRodado);
+      const liq = r.totalLiquido != null ? Number(r.totalLiquido) : (Number(r.totalBruto||0) - Number(r.gastosGerais||0));
+      const hr = parsarHoras(r.horarioRodado);
       
-      turnos[turno].dias += 1;
-      turnos[turno].totalLiquido += liquido;
-      turnos[turno].totalBruto += bruto;
-      turnos[turno].totalHoras += horas;
-      turnos[turno].totalKm += Number(r.km) || 0;
+      let valInicio = r.horaInicio ? Number(r.horaInicio.split(':')[0]) + Number(r.horaInicio.split(':')[1])/60 : 0;
+      let valFim = r.horaFim ? Number(r.horaFim.split(':')[0]) + Number(r.horaFim.split(':')[1])/60 : 0;
+      if (valFim < valInicio) valFim += 24;
+
+      turnos[turno].qtd += 1;
+      turnos[turno].totalLiquido += liq;
+      turnos[turno].totalHoras += hr;
+      turnos[turno].somaInicio += valInicio;
+      turnos[turno].somaFim += valFim;
     });
-    
+
     return Object.values(turnos).map(t => {
-      const ganhoHora = t.totalHoras > 0 ? t.totalLiquido / t.totalHoras : 0;
-      const ganhoKm = t.totalKm > 0 ? t.totalLiquido / t.totalKm : 0;
+      let mInicio = t.somaInicio / t.qtd;
+      let mFim = t.somaFim / t.qtd;
       return {
         ...t,
-        ganhoHora,
-        ganhoKm
+        mediaInicio: mInicio,
+        mediaFim: mFim,
+        ganhoHora: t.totalHoras > 0 ? t.totalLiquido / t.totalHoras : 0
       };
     }).sort((a, b) => b.ganhoHora - a.ganhoHora);
   }, [registrosFiltrados]);
 
-  // ─── 2. WEEKDAY VS WEEKEND ANALYSIS ───
-  const analiseDias = useMemo(() => {
-    const dados = {
-      semana: {
-        nome: 'Dias Úteis (Seg a Sex) 💼',
-        dias: 0,
-        totalLiquido: 0,
-        totalBruto: 0,
-        totalHoras: 0,
-        totalKm: 0,
-        totalViagens: 0
-      },
-      fds: {
-        nome: 'Finais de Semana (Sáb/Dom) 🏖️',
-        dias: 0,
-        totalLiquido: 0,
-        totalBruto: 0,
-        totalHoras: 0,
-        totalKm: 0,
-        totalViagens: 0
-      }
-    };
+  // INSIGHTS
+  const insights = useMemo(() => {
+    const ativos = analiseDiasDaSemana.filter(d => d.qtd > 0);
+    if (ativos.length === 0) return null;
     
-    registrosFiltrados.forEach(r => {
-      const fds = isFimDeSemana(r.id);
-      const grupo = fds ? dados.fds : dados.semana;
-      
-      const bruto = Number(r.totalBruto) || 0;
-      const gastos = Number(r.gastosGerais) || 0;
-      const liquido = r.totalLiquido != null ? Number(r.totalLiquido) : bruto - gastos;
-      const horas = parsarHoras(r.horarioRodado);
-      
-      grupo.dias += 1;
-      grupo.totalLiquido += liquido;
-      grupo.totalBruto += bruto;
-      grupo.totalHoras += horas;
-      grupo.totalKm += Number(r.km) || 0;
-      grupo.totalViagens += Number(r.viagens) || 0;
-    });
+    const melhorDia = [...ativos].sort((a, b) => b.mediaDiaria - a.mediaDiaria)[0];
+    const melhorDiaHora = [...ativos].sort((a, b) => b.ganhoHora - a.ganhoHora)[0];
     
-    const processarAverages = (g) => {
-      if (g.dias === 0) return { ...g, mediaDiaria: 0, ganhoHora: 0, ganhoKm: 0, mediaViagens: 0 };
-      return {
-        ...g,
-        mediaDiaria: g.totalLiquido / g.dias,
-        ganhoHora: g.totalHoras > 0 ? g.totalLiquido / g.totalHoras : 0,
-        ganhoKm: g.totalKm > 0 ? g.totalLiquido / g.totalKm : 0,
-        mediaViagens: g.totalViagens / g.dias
-      };
-    };
-    
-    return {
-      semana: processarAverages(dados.semana),
-      fds: processarAverages(dados.fds)
-    };
-  }, [registrosFiltrados]);
-
-  // ─── 3. CATEGORIES COMBINATIONS PERFORMANCE ───
-  const analiseCategorias = useMemo(() => {
-    const combinacoes = {};
-    
-    registrosFiltrados.forEach(r => {
-      let setup = 'Nenhuma Categoria';
-      if (r.categorias && Array.isArray(r.categorias) && r.categorias.length > 0) {
-        setup = [...r.categorias].filter(c => c && typeof c === 'string').sort().join(' + ');
-      } else if (r.categorias && typeof r.categorias === 'string') {
-        setup = r.categorias;
-      }
-      
-      if (!combinacoes[setup]) {
-        combinacoes[setup] = {
-          nome: setup,
-          dias: 0,
-          totalLiquido: 0,
-          totalBruto: 0,
-          totalHoras: 0,
-          totalKm: 0
-        };
-      }
-      
-      const bruto = Number(r.totalBruto) || 0;
-      const gastos = Number(r.gastosGerais) || 0;
-      const liquido = r.totalLiquido != null ? Number(r.totalLiquido) : bruto - gastos;
-      const horas = parsarHoras(r.horarioRodado);
-      
-      combinacoes[setup].dias += 1;
-      combinacoes[setup].totalLiquido += liquido;
-      combinacoes[setup].totalBruto += bruto;
-      combinacoes[setup].totalHoras += horas;
-      combinacoes[setup].totalKm += Number(r.km) || 0;
-    });
-    
-    return Object.values(combinacoes).map(c => {
-      const ganhoHora = c.totalHoras > 0 ? c.totalLiquido / c.totalHoras : 0;
-      const ganhoKm = c.totalKm > 0 ? c.totalLiquido / c.totalKm : 0;
-      return {
-        ...c,
-        ganhoHora,
-        ganhoKm
-      };
-    }).sort((a, b) => b.ganhoHora - a.ganhoHora);
-  }, [registrosFiltrados]);
-
-  // ─── Recommendations & Golden Nugget ───
-  const recomendacao = useMemo(() => {
-    if (analiseTurnos.length === 0 && analiseCategorias.length === 0) return null;
-    
-    let turnoTxt = '';
+    let turnoMsg = '';
     if (analiseTurnos.length > 0) {
-      const melhor = analiseTurnos[0];
-      turnoTxt = `Seu melhor período de rodagem é o **${melhor.nome}**, rendendo em média **${formatarMoeda(melhor.ganhoHora)}/hora** de ganho líquido.`;
-    }
-    
-    let catTxt = '';
-    if (analiseCategorias.length > 0) {
-      const melhorCat = analiseCategorias.find(c => c.nome !== 'Nenhuma Categoria') || analiseCategorias[0];
-      catTxt = `Trabalhar com a combinação **"${melhorCat.nome}"** tem sido a estratégia mais rentável, com um rendimento médio de **${formatarMoeda(melhorCat.ganhoHora)}/hora**.`;
-    }
-    
-    let fdsTxt = '';
-    if (analiseDias.semana.dias > 0 && analiseDias.fds.dias > 0) {
-      const diff = analiseDias.fds.ganhoHora - analiseDias.semana.ganhoHora;
-      if (diff > 5) {
-        fdsTxt = `🎉 **Fim de semana lucrativo:** Rodar nos finais de semana está rendendo **${formatarMoeda(diff)} a mais por hora** do que nos dias úteis! Aproveite o sábado e domingo para alavancar seu caixa.`;
-      } else if (diff < -5) {
-        fdsTxt = `💼 **Dias úteis mais fortes:** O trânsito de dias de semana está rendendo **${formatarMoeda(Math.abs(diff))}/hora a mais** do que os finais de semana. Fique atento às tarifas dinâmicas comerciais.`;
-      } else {
-        fdsTxt = `⚖️ **Rendimento equilibrado:** Seu rendimento por hora é muito similar tanto no final de semana quanto nos dias úteis. Escolha sua folga com base no seu descanso preferencial.`;
-      }
+      const t = analiseTurnos[0];
+      turnoMsg = `No geral, o seu turno mais lucrativo é **${t.nome}**, fazendo **${formatarMoeda(t.ganhoHora)} por hora**.`;
     }
 
     return {
-      turnoTxt,
-      catTxt,
-      fdsTxt
+      melhorDia,
+      melhorDiaHora,
+      turnoMsg
     };
-  }, [analiseTurnos, analiseDias, analiseCategorias]);
+  }, [analiseDiasDaSemana, analiseTurnos]);
+
+  const CustomTooltipRecharts = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      return (
+        <div style={{ background: '#1e1e24', padding: '12px', border: '1px solid #333', borderRadius: '8px', color: '#fff', fontSize: '0.85rem' }}>
+          <p style={{ margin: '0 0 8px 0', fontWeight: 'bold' }}>{label}</p>
+          <p style={{ margin: '4px 0', color: payload[0].color }}>Rendimento: {formatarMoeda(payload[0].value)}/h</p>
+          <p style={{ margin: '4px 0', color: '#aaa' }}>Média de Ganho do Dia: {formatarMoeda(payload[0].payload.mediaDiaria)}</p>
+        </div>
+      );
+    }
+    return null;
+  };
 
   return (
     <div className="analise-tab">
-      {/* HEADER & FILTER */}
       <div className="section-card" style={{ marginBottom: '24px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <div>
-            <h2 className="section-title" style={{ margin: 0 }}>📊 Central de Inteligência de Performance</h2>
+            <h2 className="section-title" style={{ margin: 0 }}>📊 Análise Uber</h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '6px' }}>
-              Análises automatizadas dos turnos, categorias de apps ativos e comparação de fins de semana.
+              Inteligência de rendimento por dia da semana e performance de horários e turnos.
             </p>
           </div>
           <div className="form-group" style={{ minWidth: '180px' }}>
@@ -308,18 +204,10 @@ export default function AnaliseTab() {
             >
               <option value="todos">📅 Todo o Histórico</option>
               {mesesDisponiveis.map(m => {
-                if (!m || typeof m !== 'string' || !m.includes('-')) return null;
                 const parts = m.split('-');
-                const ano = Number(parts[0]);
-                const mes = Number(parts[1]);
-                if (isNaN(ano) || isNaN(mes)) return null;
-                
-                const dataObjeto = new Date(ano, mes - 1, 15);
-                if (isNaN(dataObjeto.getTime())) return null;
-                
-                const labelRaw = dataObjeto.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-                const label = labelRaw.charAt(0).toUpperCase() + labelRaw.slice(1);
-                return <option key={m} value={m}>{label}</option>;
+                const d = new Date(Number(parts[0]), Number(parts[1]) - 1, 15);
+                const l = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                return <option key={m} value={m}>{l.charAt(0).toUpperCase() + l.slice(1)}</option>;
               })}
             </select>
           </div>
@@ -328,104 +216,61 @@ export default function AnaliseTab() {
 
       {registrosFiltrados.length === 0 ? (
         <div className="section-card" style={{ textAlign: 'center', padding: '40px' }}>
-          <p className="empty-state">
-            Nenhum registro encontrado no período selecionado.<br />
-            Preencha seus registros diários com os horários de início/fim e categorias na aba **Uber / Ganhos** para gerar a inteligência!
-          </p>
+          <p className="empty-state">Sem dados para o período.</p>
         </div>
       ) : (
         <>
-          {/* INSIGHTS RAPIDOS / RECOMENDAÇÕES */}
-          {recomendacao && (
-            <div className="section-card" style={{ background: 'linear-gradient(135deg, var(--purple-dim), rgba(0, 212, 170, 0.05))', marginBottom: '24px', border: '1px solid rgba(108, 92, 231, 0.2)' }}>
-              <h3 className="subsection-title" style={{ color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                💡 Hawk AI — Recomendações e Insights de Ouro
+          {/* Insights */}
+          {insights && (
+            <div className="section-card" style={{ background: 'linear-gradient(135deg, rgba(108, 92, 231, 0.1), rgba(0, 212, 170, 0.05))', marginBottom: '24px', border: '1px solid rgba(108, 92, 231, 0.2)' }}>
+              <h3 className="subsection-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                🧠 Insights Inteligentes da sua Operação
               </h3>
-              <ul style={{ color: 'rgba(240, 240, 245, 0.85)', fontSize: '0.88rem', paddingLeft: '20px', lineHeight: '1.7' }}>
-                {recomendacao.turnoTxt && <li style={{ marginBottom: '8px' }} dangerouslySetInnerHTML={{ __html: recomendacao.turnoTxt.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }}></li>}
-                {recomendacao.catTxt && <li style={{ marginBottom: '8px' }} dangerouslySetInnerHTML={{ __html: recomendacao.catTxt.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }}></li>}
-                {recomendacao.fdsTxt && <li style={{ marginBottom: '4px' }} dangerouslySetInnerHTML={{ __html: recomendacao.fdsTxt.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }}></li>}
+              <ul style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: '1.6', paddingLeft: '20px' }}>
+                <li style={{ marginBottom: '6px' }}>
+                  Historicamente, trabalhar às <strong>{insights.melhorDia.nome}s</strong> gera a maior média bruta diária: <strong>{formatarMoeda(insights.melhorDia.mediaDiaria)}</strong>.
+                </li>
+                <li style={{ marginBottom: '6px' }}>
+                  No entanto, a maior eficiência financeira (R$ ganho por hora rodada) ocorre às <strong>{insights.melhorDiaHora.nome}s</strong>, pagando <strong>{formatarMoeda(insights.melhorDiaHora.ganhoHora)}/h</strong>.
+                </li>
+                {insights.turnoMsg && <li dangerouslySetInnerHTML={{ __html: insights.turnoMsg.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />}
               </ul>
             </div>
           )}
 
-          {/* GRID: WEEKDAY VS WEEKEND */}
-          <h2 className="section-title">⚖️ Comparativo Justo: Dias Úteis vs Fins de Semana</h2>
-          <div className="summary-cards" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px', marginBottom: '32px' }}>
-            {/* WEEKDAYS */}
-            <div className="section-card" style={{ padding: '24px', background: 'rgba(255, 255, 255, 0.02)' }}>
-              <h3 className="subsection-title" style={{ fontSize: '1rem', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '10px' }}>
-                {analiseDias.semana.nome}
-              </h3>
-              {analiseDias.semana.dias > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '16px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Dias Trabalhados:</span>
-                    <span style={{ fontWeight: 600 }}>{analiseDias.semana.dias} dias</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Média Diária Líquida:</span>
-                    <span style={{ fontWeight: 600, color: 'var(--green)' }}>{formatarMoeda(analiseDias.semana.mediaDiaria)}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Rendimento por Hora:</span>
-                    <span style={{ fontWeight: 700, color: 'var(--purple)' }}>{formatarMoeda(analiseDias.semana.ganhoHora)}/h</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Rendimento por Km:</span>
-                    <span style={{ fontWeight: 600 }}>{formatarMoeda(analiseDias.semana.ganhoKm)}/km</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Média de Corridas/Dia:</span>
-                    <span style={{ fontWeight: 600 }}>{analiseDias.semana.mediaViagens.toFixed(1)} viagens</span>
-                  </div>
-                </div>
-              ) : (
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '16px' }}>Nenhum dia útil registrado no período.</p>
-              )}
+          {/* Gráfico de Barras: Melhores Dias */}
+          <div className="section-card" style={{ marginBottom: '24px' }}>
+            <h3 className="subsection-title">📅 Rendimento por Hora em cada Dia da Semana</h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: '24px' }}>
+              Comparando os mesmos dias da semana para encontrar os melhores dias para trabalhar e folgar.
+            </p>
+            <div style={{ height: '300px', width: '100%' }}>
+              <ResponsiveContainer>
+                <BarChart data={analiseDiasDaSemana} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <XAxis dataKey="shortNome" stroke="#888" fontSize={12} />
+                  <YAxis stroke="#888" fontSize={12} tickFormatter={(val) => `R$${val}`} />
+                  <Tooltip cursor={{ fill: 'rgba(255,255,255,0.05)' }} content={<CustomTooltipRecharts />} />
+                  <Bar dataKey="ganhoHora" radius={[6, 6, 0, 0]}>
+                    {analiseDiasDaSemana.map((entry, index) => {
+                      // Final de semana cor diferente (Sábado 6, Domingo 0)
+                      const color = (entry.idx === 0 || entry.idx === 6) ? '#6c5ce7' : '#00d4aa';
+                      return <Cell key={`cell-${index}`} fill={color} />;
+                    })}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             </div>
-
-            {/* WEEKENDS */}
-            <div className="section-card" style={{ padding: '24px', background: 'rgba(255, 255, 255, 0.02)' }}>
-              <h3 className="subsection-title" style={{ fontSize: '1rem', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '10px' }}>
-                {analiseDias.fds.nome}
-              </h3>
-              {analiseDias.fds.dias > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '16px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Dias Trabalhados:</span>
-                    <span style={{ fontWeight: 600 }}>{analiseDias.fds.dias} dias</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Média Diária Líquida:</span>
-                    <span style={{ fontWeight: 600, color: 'var(--green)' }}>{formatarMoeda(analiseDias.fds.mediaDiaria)}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Rendimento por Hora:</span>
-                    <span style={{ fontWeight: 700, color: 'var(--purple)' }}>{formatarMoeda(analiseDias.fds.ganhoHora)}/h</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Rendimento por Km:</span>
-                    <span style={{ fontWeight: 600 }}>{formatarMoeda(analiseDias.fds.ganhoKm)}/km</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Média de Corridas/Dia:</span>
-                    <span style={{ fontWeight: 600 }}>{analiseDias.fds.mediaViagens.toFixed(1)} viagens</span>
-                  </div>
-                </div>
-              ) : (
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '16px' }}>Nenhum final de semana registrado no período.</p>
-              )}
+            <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', marginTop: '16px', fontSize: '0.8rem' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: 12, height: 12, background: '#00d4aa', borderRadius: 2 }} /> Dias Úteis</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: 12, height: 12, background: '#6c5ce7', borderRadius: 2 }} /> Fins de Semana</span>
             </div>
           </div>
 
-          {/* TURN/SHIFT ANALYSIS TABLE */}
-          <div className="section-card" style={{ marginBottom: '32px' }}>
-            <h3 className="subsection-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              ⏱️ Performance por Estilo e Período de Rodagem
-            </h3>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: '16px' }}>
-              Ranquear os períodos com melhor rendimento por hora de trabalho líquida real.
+          {/* Ranking de Turnos */}
+          <div className="section-card">
+            <h3 className="subsection-title">⏱️ Performance e Marcação por Turnos</h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: '24px' }}>
+              Identifique se a madrugada, manhã, tarde ou noite entregam mais rentabilidade.
             </p>
             {analiseTurnos.length > 0 ? (
               <div className="historico-table-wrapper" style={{ border: '1px solid var(--glass-border)', borderRadius: '12px' }}>
@@ -433,69 +278,73 @@ export default function AnaliseTab() {
                   <thead>
                     <tr>
                       <th>Turno de Trabalho</th>
-                      <th>Dias Rodados</th>
-                      <th>Total Líquido</th>
-                      <th>Total Horas</th>
-                      <th>Ganho por Hora (R$/h)</th>
-                      <th>Ganho por Km (R$/km)</th>
+                      <th>Registros</th>
+                      <th>Rendimento Hora</th>
+                      <th>Média Líquida/Turno</th>
+                      <th style={{ width: '40%' }}>Mapa do Dia (Timeline Visual)</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {analiseTurnos.map((t, idx) => (
-                      <tr key={idx}>
-                        <td style={{ fontWeight: 600 }}>{t.nome}</td>
-                        <td>{t.dias} dias</td>
-                        <td>{formatarMoeda(t.totalLiquido)}</td>
-                        <td>{t.totalHoras.toFixed(1)}h</td>
-                        <td className="td-liquido">{formatarMoeda(t.ganhoHora)}/h</td>
-                        <td>{formatarMoeda(t.ganhoKm)}/km</td>
-                      </tr>
-                    ))}
+                    {analiseTurnos.map((t, idx) => {
+                      const mLiq = t.totalLiquido / t.qtd;
+                      
+                      const start = t.mediaInicio;
+                      const end = t.mediaFim;
+                      const duration = end - start;
+                      
+                      let bars = [];
+                      if (end > 24) {
+                         const startPct = (start / 24) * 100;
+                         const endPct = ((end - 24) / 24) * 100;
+                         const width1 = 100 - startPct;
+                         bars.push({ left: startPct, width: width1 });
+                         bars.push({ left: 0, width: endPct });
+                      } else {
+                         const startPct = (start / 24) * 100;
+                         const widthPct = (duration / 24) * 100;
+                         bars.push({ left: startPct, width: widthPct });
+                      }
+                      
+                      return (
+                        <tr key={idx}>
+                          <td style={{ fontWeight: 600 }}>{t.nome}</td>
+                          <td>{t.qtd} dias</td>
+                          <td style={{ color: 'var(--green)', fontWeight: 'bold' }}>{formatarMoeda(t.ganhoHora)}/h</td>
+                          <td>{formatarMoeda(mLiq)}</td>
+                          <td style={{ width: '40%' }}>
+                            <div style={{ position: 'relative', width: '100%', height: '16px', borderRadius: '12px', background: 'rgba(255,255,255,0.04)', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
+                              {/* Divisórias de 6 horas */}
+                              <div style={{ position: 'absolute', left: '25%', top: 0, bottom: 0, borderLeft: '1px solid rgba(255,255,255,0.1)' }} />
+                              <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, borderLeft: '1px solid rgba(255,255,255,0.1)' }} />
+                              <div style={{ position: 'absolute', left: '75%', top: 0, bottom: 0, borderLeft: '1px solid rgba(255,255,255,0.1)' }} />
+                              
+                              {/* Preenchimento das horas trabalhadas */}
+                              {bars.map((b, i) => (
+                                <div key={i} style={{
+                                  position: 'absolute', top: 0, bottom: 0,
+                                  left: `${b.left}%`, width: `${b.width}%`,
+                                  background: 'linear-gradient(90deg, #00d4aa, #6c5ce7)',
+                                  boxShadow: '0 0 8px rgba(0, 212, 170, 0.4)',
+                                  borderRadius: '12px'
+                                }} title={`De ${Math.floor(start)}h até ${Math.floor(end > 24 ? end - 24 : end)}h`} />
+                              ))}
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: '#888', marginTop: '6px', fontWeight: 500 }}>
+                              <span>00h</span>
+                              <span>06h</span>
+                              <span>12h</span>
+                              <span>18h</span>
+                              <span>00h</span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
             ) : (
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Defina o início e término dos seus registros para ver dados de turno.</p>
-            )}
-          </div>
-
-          {/* CATEGORY & APP SETUP RANKING */}
-          <div className="section-card">
-            <h3 className="subsection-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              🚗 Performance por Setup de Categorias e Apps
-            </h3>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: '16px' }}>
-              Veja quais combinações de categorias (ex: UberX, Comfort, Black) ou se ligar a 99 em paralelo traz os melhores resultados.
-            </p>
-            {analiseCategorias.length > 0 ? (
-              <div className="historico-table-wrapper" style={{ border: '1px solid var(--glass-border)', borderRadius: '12px' }}>
-                <table className="historico-table">
-                  <thead>
-                    <tr>
-                      <th>Setup Ativo (Categorias / Apps)</th>
-                      <th>Dias Rodados</th>
-                      <th>Total Líquido</th>
-                      <th>Ganho Médio / Hora</th>
-                      <th>Ganho Médio / Km</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {analiseCategorias.map((c, idx) => (
-                      <tr key={idx}>
-                        <td style={{ fontWeight: 600, color: c.nome.includes('Black') ? 'var(--yellow)' : 'var(--text-primary)' }}>
-                          {c.nome}
-                        </td>
-                        <td>{c.dias} dias</td>
-                        <td>{formatarMoeda(c.totalLiquido)}</td>
-                        <td className="td-liquido">{formatarMoeda(c.ganhoHora)}/h</td>
-                        <td>{formatarMoeda(c.ganhoKm)}/km</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Adicione as categorias ativas nos seus registros para compilar o ranking.</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Registre as horas de início e término na aba de Ganhos para gerar este mapa.</p>
             )}
           </div>
         </>

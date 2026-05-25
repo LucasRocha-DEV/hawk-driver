@@ -9,7 +9,7 @@ import PatrimonioTab from './components/PatrimonioTab';
 
 const TABS = [
   { id: 'uber', label: 'Uber / Ganhos', icon: '🚗' },
-  { id: 'analise', label: 'Análise', icon: '📊' },
+  { id: 'analise', label: 'Análise Uber', icon: '📊' },
   { id: 'despesas', label: 'Despesas Fixas', icon: '📋' },
   { id: 'gastos', label: 'Gastos Variáveis', icon: '💸' },
   { id: 'patrimonio', label: 'Patrimônio', icon: '💰' },

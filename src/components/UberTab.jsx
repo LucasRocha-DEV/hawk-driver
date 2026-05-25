@@ -11,7 +11,8 @@ import {
   orderBy,
   limit,
   serverTimestamp,
-  addDoc
+  addDoc,
+  increment
 } from 'firebase/firestore';
 import Calendar from 'react-calendar';
 import {
@@ -350,7 +351,11 @@ export default function UberTab() {
   const tileClassName = useCallback(({ date, view }) => {
     if (view === 'month') {
       const chave = formatarDataChave(date);
-      if (registrosMap[chave]) {
+      const reg = registrosMap[chave];
+      if (reg) {
+        if (reg.totalLiquido > 0 && !reg.caixinhasEnviadas) {
+          return 'calendar-day-highlight calendar-day-pendente';
+        }
         return 'calendar-day-highlight';
       }
     }
@@ -400,12 +405,11 @@ export default function UberTab() {
         atualizadoEm: serverTimestamp()
       };
       // Preserve caixinha sent flags if they exist
-      if (registroDoDia) {
-        if (registroDoDia.caixinhaEmergenciaEnviada) dados.caixinhaEmergenciaEnviada = true;
-        if (registroDoDia.caixinhaManutencaoEnviada) dados.caixinhaManutencaoEnviada = true;
-        if (registroDoDia.caixinhaEmpresaEnviada) dados.caixinhaEmpresaEnviada = true;
-        if (registroDoDia.caixinhaLivreEnviada) dados.caixinhaLivreEnviada = true;
-        if (registroDoDia.caixinhaContasEnviada) dados.caixinhaContasEnviada = true;
+      // Preserve caixinha sent flag se existir
+      if (registroDoDia && registroDoDia.caixinhasEnviadas) {
+        dados.caixinhasEnviadas = true;
+      } else {
+        dados.caixinhasEnviadas = false;
       }
       await setDoc(docRef, dados, { merge: true });
       alert('✅ Registro diário salvo com sucesso!');
@@ -439,54 +443,63 @@ export default function UberTab() {
   };
 
   // ─── Caixinha toggle ───
-  const toggleCaixinha = async (campo, valor) => {
-    if (!usuario) return;
+  // ─── Confirmar Envio para Caixinhas (Patrimônio) ───
+  const confirmarEnvioCaixinhas = async () => {
+    if (!usuario || !registroDoDia || registroDoDia.caixinhasEnviadas) return;
+    setSalvando(true);
     try {
-      const docRef = doc(db, 'usuarios', usuario.uid, 'registros', dataChave);
-      await setDoc(docRef, { [campo]: valor }, { merge: true });
-    } catch (err) {
-      console.error('Erro ao atualizar caixinha:', err);
-    }
-  };
+      const valoresCaixinhas = {
+        emergencia: brutoNum * (pctEmergencia / 100),
+        manutencao: brutoNum * (pctManutencao / 100),
+        empresa: liquidoNum * (pctEmpresa / 100),
+        livre: liquidoNum * (pctLivre / 100),
+        contas: liquidoNum * (pctContas / 100)
+      };
 
-  const toggleCategoria = (cat) => {
-    if (categoriasSelecionadas.includes(cat)) {
-      setCategoriasSelecionadas(prev => prev.filter(c => c !== cat));
-    } else {
-      setCategoriasSelecionadas(prev => [...prev, cat]);
-    }
-  };
+      const saldoUpdates = {};
+      const transacoesRef = collection(db, 'usuarios', usuario.uid, 'transacoes_patrimonio');
+      const batchPromises = [];
 
-  // ─── Save retirada ───
-  const salvarRetirada = async () => {
-    if (!usuario || !retiradaValor) return;
-    setSalvandoRetirada(true);
-    try {
-      const retiradasRef = collection(db, 'usuarios', usuario.uid, 'retiradas_nubank');
-      await addDoc(retiradasRef, {
-        caixinha: retiradaCaixinha,
-        valor: parseFloat(retiradaValor) || 0,
-        motivo: retiradaMotivo,
-        data: retiradaData,
-        criadoEm: serverTimestamp()
-      });
-      setRetiradaValor('');
-      setRetiradaMotivo('');
-      setMostrarRetirada(false);
-    } catch (err) {
-      console.error('Erro ao salvar retirada:', err);
-    }
-    setSalvandoRetirada(false);
-  };
+      // Para cada caixinha que tem valor > 0, preparamos o incremento e a transação
+      for (const [chaveId, valor] of Object.entries(valoresCaixinhas)) {
+        if (valor > 0) {
+          saldoUpdates[chaveId] = increment(valor);
+          
+          let nomeBonito = chaveId;
+          if (chaveId === 'emergencia') nomeBonito = 'Emergência';
+          if (chaveId === 'manutencao') nomeBonito = 'Manutenção';
+          if (chaveId === 'empresa') nomeBonito = 'Empresa';
+          if (chaveId === 'livre') nomeBonito = 'Livre / Lazer';
+          if (chaveId === 'contas') nomeBonito = 'Contas';
 
-  // ─── Delete retirada ───
-  const deletarRetirada = async (id) => {
-    if (!usuario) return;
-    try {
-      await deleteDoc(doc(db, 'usuarios', usuario.uid, 'retiradas_nubank', id));
+          batchPromises.push(
+            addDoc(transacoesRef, {
+              caixinhaId: chaveId,
+              caixinhaNome: nomeBonito,
+              tipo: 'ENTRADA',
+              valor: valor,
+              motivo: `Depósito automático do fechamento do dia ${dataSelecionada.toLocaleDateString('pt-BR')}`,
+              data: formatarDataChave(new Date()),
+              criadoEm: serverTimestamp()
+            })
+          );
+        }
+      }
+
+      saldoUpdates.atualizadoEm = serverTimestamp();
+      const saldoRef = doc(db, 'usuarios', usuario.uid, 'saldos', 'atual');
+      batchPromises.push(setDoc(saldoRef, saldoUpdates, { merge: true }));
+
+      const registroRef = doc(db, 'usuarios', usuario.uid, 'registros', dataChave);
+      batchPromises.push(setDoc(registroRef, { caixinhasEnviadas: true }, { merge: true }));
+
+      await Promise.all(batchPromises);
+      alert('🎉 Dinheiro enviado com sucesso para a aba Patrimônio!');
     } catch (err) {
-      console.error('Erro ao deletar retirada:', err);
+      console.error('Erro ao enviar caixinhas:', err);
+      alert('Erro ao enviar dinheiro: ' + err.message);
     }
+    setSalvando(false);
   };
 
   // ─── Custom tooltip for line chart ───
@@ -892,209 +905,63 @@ export default function UberTab() {
 
         <div className="caixinhas-grid">
           {/* Emergência */}
-          <div className={`caixinha-card ${registroDoDia?.caixinhaEmergenciaEnviada ? 'caixinha-enviada' : ''}`}>
-            <span className="caixinha-label">🚨 Emergência ({pctEmergencia}% do Bruto)</span>
+          <div className={`caixinha-card ${registroDoDia?.caixinhasEnviadas ? 'caixinha-enviada' : ''}`}>
+            <span className="caixinha-label">🚨 Emergência ({pctEmergencia}% Bruto)</span>
             <span className="caixinha-valor">{formatarMoeda(brutoNum * (pctEmergencia / 100))}</span>
-            {registroDoDia?.caixinhaEmergenciaEnviada ? (
-              <button
-                className="btn-desfazer"
-                onClick={() => toggleCaixinha('caixinhaEmergenciaEnviada', false)}
-              >
-                ↩ Desfazer
-              </button>
-            ) : (
-              <button
-                className="btn-caixinha"
-                onClick={() => toggleCaixinha('caixinhaEmergenciaEnviada', true)}
-              >
-                ✓ Marcar como Enviado
-              </button>
-            )}
           </div>
 
           {/* Manutenção */}
-          <div className={`caixinha-card ${registroDoDia?.caixinhaManutencaoEnviada ? 'caixinha-enviada' : ''}`}>
-            <span className="caixinha-label">🔧 Manutenção ({pctManutencao}% do Bruto)</span>
+          <div className={`caixinha-card ${registroDoDia?.caixinhasEnviadas ? 'caixinha-enviada' : ''}`}>
+            <span className="caixinha-label">🔧 Manutenção ({pctManutencao}% Bruto)</span>
             <span className="caixinha-valor">{formatarMoeda(brutoNum * (pctManutencao / 100))}</span>
-            {registroDoDia?.caixinhaManutencaoEnviada ? (
-              <button
-                className="btn-desfazer"
-                onClick={() => toggleCaixinha('caixinhaManutencaoEnviada', false)}
-              >
-                ↩ Desfazer
-              </button>
-            ) : (
-              <button
-                className="btn-caixinha"
-                onClick={() => toggleCaixinha('caixinhaManutencaoEnviada', true)}
-              >
-                ✓ Marcar como Enviado
-              </button>
-            )}
           </div>
 
           {/* Empresa */}
-          <div className={`caixinha-card ${registroDoDia?.caixinhaEmpresaEnviada ? 'caixinha-enviada' : ''}`}>
-            <span className="caixinha-label">🏢 Empresa ({pctEmpresa}% do Líquido)</span>
+          <div className={`caixinha-card ${registroDoDia?.caixinhasEnviadas ? 'caixinha-enviada' : ''}`}>
+            <span className="caixinha-label">🏢 Empresa ({pctEmpresa}% Líquido)</span>
             <span className="caixinha-valor">{formatarMoeda(liquidoNum * (pctEmpresa / 100))}</span>
-            {registroDoDia?.caixinhaEmpresaEnviada ? (
-              <button
-                className="btn-desfazer"
-                onClick={() => toggleCaixinha('caixinhaEmpresaEnviada', false)}
-              >
-                ↩ Desfazer
-              </button>
-            ) : (
-              <button
-                className="btn-caixinha"
-                onClick={() => toggleCaixinha('caixinhaEmpresaEnviada', true)}
-              >
-                ✓ Marcar como Enviado
-              </button>
-            )}
           </div>
 
           {/* Livre - Lazer */}
-          <div className={`caixinha-card ${registroDoDia?.caixinhaLivreEnviada ? 'caixinha-enviada' : ''}`}>
-            <span className="caixinha-label">💸 Livre - Lazer ({pctLivre}% do Líquido)</span>
+          <div className={`caixinha-card ${registroDoDia?.caixinhasEnviadas ? 'caixinha-enviada' : ''}`}>
+            <span className="caixinha-label">💸 Livre - Lazer ({pctLivre}% Líquido)</span>
             <span className="caixinha-valor">{formatarMoeda(liquidoNum * (pctLivre / 100))}</span>
-            {registroDoDia?.caixinhaLivreEnviada ? (
-              <button
-                className="btn-desfazer"
-                onClick={() => toggleCaixinha('caixinhaLivreEnviada', false)}
-              >
-                ↩ Desfazer
-              </button>
-            ) : (
-              <button
-                className="btn-caixinha"
-                onClick={() => toggleCaixinha('caixinhaLivreEnviada', true)}
-              >
-                ✓ Marcar como Enviado
-              </button>
-            )}
           </div>
 
           {/* Contas */}
-          <div className={`caixinha-card ${registroDoDia?.caixinhaContasEnviada ? 'caixinha-enviada' : ''}`}>
-            <span className="caixinha-label">💳 Contas ({pctContas}% do Líquido)</span>
+          <div className={`caixinha-card ${registroDoDia?.caixinhasEnviadas ? 'caixinha-enviada' : ''}`}>
+            <span className="caixinha-label">💳 Contas ({pctContas}% Líquido)</span>
             <span className="caixinha-valor">{formatarMoeda(liquidoNum * (pctContas / 100))}</span>
-            {registroDoDia?.caixinhaContasEnviada ? (
-              <button
-                className="btn-desfazer"
-                onClick={() => toggleCaixinha('caixinhaContasEnviada', false)}
-              >
-                ↩ Desfazer
-              </button>
-            ) : (
-              <button
-                className="btn-caixinha"
-                onClick={() => toggleCaixinha('caixinhaContasEnviada', true)}
-              >
-                ✓ Marcar como Enviado
-              </button>
-            )}
           </div>
         </div>
 
-        {/* Retirada de Caixinha */}
-        <div className="retirada-section">
-          <button
-            className="btn-secondary"
-            onClick={() => setMostrarRetirada(!mostrarRetirada)}
-          >
-            {mostrarRetirada ? '✕ Fechar' : '📤 Registrar Retirada'}
-          </button>
-
-          {mostrarRetirada && (
-            <div className="retirada-form">
-              <div className="form-grid">
-                <div className="form-group">
-                  <label className="form-label">Caixinha</label>
-                  <select
-                    className="form-input"
-                    value={retiradaCaixinha}
-                    onChange={e => setRetiradaCaixinha(e.target.value)}
-                  >
-                    <option value="Emergência">Emergência</option>
-                    <option value="Manutenção">Manutenção</option>
-                    <option value="Empresa">Empresa</option>
-                    <option value="Livre">Livre</option>
-                    <option value="Contas">Contas</option>
-                    <option value="Outra">Outra</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Valor (R$)</label>
-                  <input
-                    type="number"
-                    className="form-input"
-                    placeholder="Ex: 150.00"
-                    value={retiradaValor}
-                    onChange={e => setRetiradaValor(e.target.value)}
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Motivo</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    placeholder="Ex: Troca de pneu"
-                    value={retiradaMotivo}
-                    onChange={e => setRetiradaMotivo(e.target.value)}
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Data</label>
-                  <input
-                    type="date"
-                    className="form-input"
-                    value={retiradaData}
-                    onChange={e => setRetiradaData(e.target.value)}
-                  />
-                </div>
-              </div>
-              <button
-                className="btn-primary"
-                onClick={salvarRetirada}
-                disabled={salvandoRetirada}
-              >
-                {salvandoRetirada ? 'Salvando...' : '💾 Salvar Retirada'}
-              </button>
+        {/* Botão Global de Envio para Patrimônio */}
+        <div style={{ marginTop: '24px', textAlign: 'center' }}>
+          {registroDoDia?.caixinhasEnviadas ? (
+            <div style={{
+              background: 'rgba(0, 212, 170, 0.1)',
+              border: '1px solid rgba(0, 212, 170, 0.3)',
+              color: '#00d4aa',
+              padding: '16px',
+              borderRadius: '12px',
+              fontWeight: 600,
+              display: 'inline-block'
+            }}>
+              ✅ Distribuição enviada para a aba Patrimônio neste dia!
             </div>
+          ) : liquidoNum > 0 ? (
+            <button
+              className="btn-primary"
+              onClick={confirmarEnvioCaixinhas}
+              disabled={salvando}
+              style={{ fontSize: '1rem', padding: '14px 28px' }}
+            >
+              {salvando ? 'Processando...' : '💰 Confirmar Envio para Caixinhas (Patrimônio)'}
+            </button>
+          ) : (
+            <p style={{ color: 'var(--text-secondary)' }}>Sem lucros para distribuir neste dia.</p>
           )}
         </div>
-
-        {/* Histórico de Retiradas */}
-        {retiradasList.length > 0 && (
-          <div className="retiradas-historico">
-            <h3 className="subsection-title">📋 Histórico de Retiradas</h3>
-            <p className="retiradas-total-mes">
-              Total retirado este mês: <strong>{formatarMoeda(totalRetiradasMes)}</strong>
-            </p>
-            <div className="retiradas-lista">
-              {retiradasList.map(r => (
-                <div key={r.id} className="retirada-item">
-                  <div className="retirada-info">
-                    <span className="retirada-caixinha-tag">{r.caixinha}</span>
-                    <span className="retirada-motivo">{r.motivo || '—'}</span>
-                  </div>
-                  <div className="retirada-meta">
-                    <span className="retirada-valor-display">{formatarMoeda(r.valor)}</span>
-                    <span className="retirada-data">{r.data ? formatarDataExibicao(r.data) : '—'}</span>
-                    <button
-                      className="btn-delete-sm"
-                      onClick={() => deletarRetirada(r.id)}
-                      title="Excluir retirada"
-                    >
-                      🗑
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ═══════ 7. GRÁFICO DE LINHA ═══════ */}
