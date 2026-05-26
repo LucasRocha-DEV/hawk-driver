@@ -151,10 +151,13 @@ export default function DespesasFixasTab() {
 
   const isPago = useCallback((despesa) => {
     const chave = chaveMes(mesAtual, anoAtual);
-    if (despesa.pagoPorMes && typeof despesa.pagoPorMes === 'object') {
+    // Sistema novo: pagoPorMes é um mapa { "2026-04": true, ... }
+    // Se o campo existir (mesmo que vazio {}), usamos SOMENTE ele.
+    if (despesa.pagoPorMes != null && typeof despesa.pagoPorMes === 'object') {
       return !!despesa.pagoPorMes[chave];
     }
-    if (despesa.pago && despesa.mes === mesAtual && despesa.ano === anoAtual) {
+    // Fallback legado (despesas criadas antes da refatoração que não têm pagoPorMes)
+    if (despesa.pago === true && despesa.mes === mesAtual && despesa.ano === anoAtual) {
       return true;
     }
     return false;

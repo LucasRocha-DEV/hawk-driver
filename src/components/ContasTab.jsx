@@ -93,8 +93,8 @@ export default function ContasTab() {
       
       let isPago = false;
       if (isFixa) {
-         if (item.pagoPorMes && typeof item.pagoPorMes === 'object') isPago = !!item.pagoPorMes[mesAtualKey];
-         else isPago = item.pago && item.mes === mesAtual && item.ano === anoAtual;
+         if (item.pagoPorMes != null && typeof item.pagoPorMes === 'object') isPago = !!item.pagoPorMes[mesAtualKey];
+         else isPago = item.pago === true && item.mes === mesAtual && item.ano === anoAtual;
       } else {
          isPago = !!item.pago; // Gastos Variaveis tem boolean normal
       }

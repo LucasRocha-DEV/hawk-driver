@@ -4229,3 +4229,403 @@ html::after {
 
 /* Correção para botões do Modal ficarem alinhados */
 .section-card .form-group select { appearance: auto !important; }
+
+/* ========================================
+   BOTÕES DE AÇÃO — GAMIFICADOS
+   ======================================== */
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary);
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+.action-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.action-btn:hover { transform: translateY(-2px); }
+.action-btn:active { transform: scale(0.92); }
+
+/* Botão PAGAR (check verde brilhante) */
+.action-btn.action-check {
+  background: linear-gradient(135deg, rgba(0, 212, 170, 0.12), rgba(0, 184, 148, 0.12));
+  border-color: rgba(0, 212, 170, 0.3);
+  color: #00d4aa;
+  font-weight: 700;
+  width: auto;
+  padding: 0 14px;
+  gap: 4px;
+}
+.action-btn.action-check:hover {
+  background: linear-gradient(135deg, rgba(0, 212, 170, 0.25), rgba(0, 184, 148, 0.25));
+  border-color: #00d4aa;
+  box-shadow: 0 0 18px rgba(0, 212, 170, 0.3), 0 4px 12px rgba(0, 212, 170, 0.15);
+  color: #fff;
+}
+
+/* Botão DESFAZER (cinza sutil) */
+.action-btn.action-undo {
+  background: rgba(136, 136, 168, 0.08);
+  border-color: rgba(136, 136, 168, 0.15);
+  color: var(--text-muted);
+  width: auto;
+  padding: 0 12px;
+}
+.action-btn.action-undo:hover {
+  background: rgba(136, 136, 168, 0.15);
+  color: var(--text-secondary);
+}
+
+/* Botão EDITAR (roxo elegante) */
+.action-btn.action-edit {
+  color: var(--violet);
+}
+.action-btn.action-edit:hover {
+  background: rgba(162, 155, 254, 0.12);
+  border-color: rgba(162, 155, 254, 0.3);
+  box-shadow: 0 0 12px rgba(162, 155, 254, 0.2);
+}
+
+/* Botão EXCLUIR (vermelho sutil) */
+.action-btn.action-delete {
+  color: var(--red);
+}
+.action-btn.action-delete:hover {
+  background: rgba(255, 107, 107, 0.12);
+  border-color: rgba(255, 107, 107, 0.3);
+  box-shadow: 0 0 12px rgba(255, 107, 107, 0.2);
+}
+
+/* Botões Icon genéricos (GastosVariaveis) */
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.btn-icon:hover { transform: translateY(-1px); }
+.btn-icon.btn-edit { color: var(--violet); }
+.btn-icon.btn-edit:hover { background: rgba(162, 155, 254, 0.1); border-color: var(--violet); }
+.btn-icon.btn-delete { color: var(--red); }
+.btn-icon.btn-delete:hover { background: rgba(255, 107, 107, 0.1); border-color: var(--red); }
+
+/* ========================================
+   ESTADO VISUAL "PAGO" — GAMIFICADO
+   ======================================== */
+.expense-paid {
+  opacity: 0.7;
+  border-left: 3px solid var(--green) !important;
+}
+.expense-paid .expense-descricao {
+  text-decoration: line-through;
+  text-decoration-color: rgba(0, 212, 170, 0.4);
+}
+.expense-paid .expense-valor {
+  color: var(--text-muted) !important;
+}
+
+/* Status Tags Pago/Pendente */
+.expense-status-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 50px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.tag-pago {
+  background: var(--green-dim);
+  color: var(--green);
+  box-shadow: 0 0 8px rgba(0, 212, 170, 0.15);
+}
+.tag-pendente {
+  background: var(--red-dim);
+  color: var(--red);
+  animation: pendente-pulse 2s ease-in-out infinite;
+}
+@keyframes pendente-pulse {
+  0%, 100% { box-shadow: 0 0 0 rgba(255, 107, 107, 0); }
+  50% { box-shadow: 0 0 12px rgba(255, 107, 107, 0.25); }
+}
+
+/* Badges de Categoria/Natureza inline */
+.expense-categoria-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 50px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  color: #fff;
+}
+
+/* Expense item layout fixes */
+.expense-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.expense-details-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.expense-vencimento {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.expense-info {
+  flex: 1;
+  min-width: 0;
+}
+.expense-descricao {
+  font-weight: 600;
+  color: var(--text-primary);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.badge-recorrente {
+  font-size: 0.85rem;
+  opacity: 0.7;
+}
+
+/* ========================================
+   MODAL OVERLAY — CINEMATOGRÁFICO
+   ======================================== */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(12px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  animation: modal-fadein 0.25s ease;
+}
+@keyframes modal-fadein {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.modal-content {
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  padding: 28px;
+  max-width: 460px;
+  width: 92%;
+  animation: modal-slidein 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+}
+@keyframes modal-slidein {
+  from { transform: translateY(20px) scale(0.97); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+.modal-title {
+  font-family: var(--font-heading);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 14px;
+}
+.modal-descricao {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+.modal-texto {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  margin-bottom: 18px;
+}
+.modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.modal-btn {
+  padding: 12px 20px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+.modal-btn:hover { transform: translateY(-1px); }
+.modal-btn-danger {
+  background: rgba(255, 107, 107, 0.1);
+  color: var(--red);
+  border-color: rgba(255, 107, 107, 0.2);
+}
+.modal-btn-danger:hover { background: rgba(255, 107, 107, 0.2); box-shadow: 0 0 15px rgba(255, 107, 107, 0.15); }
+.modal-btn-warning {
+  background: rgba(255, 217, 61, 0.1);
+  color: var(--yellow);
+  border-color: rgba(255, 217, 61, 0.2);
+}
+.modal-btn-warning:hover { background: rgba(255, 217, 61, 0.2); }
+.modal-btn-danger-full {
+  background: linear-gradient(135deg, rgba(255, 107, 107, 0.15), rgba(238, 90, 36, 0.15));
+  color: #ff6b6b;
+  border-color: rgba(255, 107, 107, 0.3);
+}
+.modal-btn-danger-full:hover { background: rgba(255, 107, 107, 0.25); box-shadow: 0 0 20px rgba(255, 107, 107, 0.2); }
+.modal-btn-cancel {
+  background: transparent;
+  color: var(--text-muted);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+.modal-btn-cancel:hover { color: var(--text-secondary); background: rgba(255, 255, 255, 0.03); }
+
+/* ========================================
+   DASHBOARD HEADER — TERMÔMETRO
+   ======================================== */
+.dashboard-title {
+  font-family: var(--font-heading);
+  font-size: 1.6rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, #00d4aa, #6c5ce7);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 8px;
+}
+
+/* Section Card (Termômetro) */
+.section-card {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  transition: all 0.3s ease;
+}
+.section-card:hover {
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+/* Valor Total Info nos Gastos Variáveis */
+.expense-valor-total-info {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  display: block;
+}
+
+/* Badge de Parcela */
+.badge-parcela {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: rgba(232, 67, 147, 0.15);
+  color: #e84393;
+  margin-left: 6px;
+}
+
+/* Parcela Preview */
+.parcela-preview-card {
+  background: linear-gradient(135deg, rgba(108, 92, 231, 0.08), rgba(0, 212, 170, 0.08));
+  border: 1px solid rgba(108, 92, 231, 0.2);
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+}
+.parcela-preview-label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+.parcela-preview-valor {
+  display: block;
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--green);
+  font-family: var(--font-heading);
+}
+.parcela-preview-info {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* Metodo Badge */
+.metodo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-muted);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+/* Categoria Badge (gastos variáveis) */
+.categoria-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 50px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+}
+
+/* Filter Indicator */
+.filter-indicator {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+/* Filter buttons group */
+.filter-buttons {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.filter-btn-active {
+  box-shadow: 0 0 12px rgba(0, 212, 170, 0.2);
+}
+
