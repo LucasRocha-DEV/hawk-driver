@@ -200,7 +200,7 @@ Use formatação Markdown, emojis, e seja motivador, mas realista.`;
 
       // 4. Call Gemini
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const model = genAI.getGenerativeModel({ model: "gemini-pro" });
       const result = await model.generateContent(prompt);
       const response = await result.response;
       setInsights(response.text());
