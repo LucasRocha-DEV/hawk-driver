@@ -8,13 +8,18 @@ import GastosVariaveisTab from './components/GastosVariaveisTab';
 import ObservacoesTab from './components/ObservacoesTab';
 import PatrimonioTab from './components/PatrimonioTab';
 
+import CartoesTab from './components/CartoesTab';
+import IAInsightsTab from './components/IAInsightsTab';
+
 const TABS = [
   { id: 'uber', label: 'Uber / Ganhos', icon: '🚗' },
   { id: 'analise', label: 'Análise Uber', icon: '📊' },
   { id: 'contas', label: 'Termômetro', icon: '🧾' },
   { id: 'despesas', label: 'Despesas Fixas', icon: '📋' },
   { id: 'gastos', label: 'Gastos Variáveis', icon: '💸' },
+  { id: 'cartoes', label: 'Cartões', icon: '💳' },
   { id: 'patrimonio', label: 'Patrimônio', icon: '💰' },
+  { id: 'ia', label: 'IA Insights', icon: '🧠' },
   { id: 'notas', label: 'Observações', icon: '📝' }
 ];
 
@@ -153,7 +158,9 @@ export default function App() {
       case 'contas': return <ContasTab />;
       case 'despesas': return <DespesasFixasTab />;
       case 'gastos': return <GastosVariaveisTab />;
+      case 'cartoes': return <CartoesTab />;
       case 'patrimonio': return <PatrimonioTab />;
+      case 'ia': return <IAInsightsTab />;
       case 'notas': return <ObservacoesTab />;
       default: return <UberTab />;
     }

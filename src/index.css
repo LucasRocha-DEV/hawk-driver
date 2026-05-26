@@ -4629,3 +4629,27 @@ html::after {
   box-shadow: 0 0 12px rgba(0, 212, 170, 0.2);
 }
 
+/* Markdown AI Styles */
+.markdown-body {
+  font-family: var(--font-body);
+  color: #e0e0e0;
+  padding: 16px;
+}
+.markdown-body h1, .markdown-body h2, .markdown-body h3 {
+  color: #6c5ce7;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+.markdown-body p {
+  margin-bottom: 1rem;
+}
+.markdown-body ul, .markdown-body ol {
+  margin-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+.markdown-body li {
+  margin-bottom: 0.5rem;
+}
+.markdown-body strong {
+  color: #00d4aa;
+}

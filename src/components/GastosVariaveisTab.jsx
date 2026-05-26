@@ -111,6 +111,13 @@ export default function GastosVariaveisTab() {
   const [data, setData] = useState(dataHojeISO());
   const [observacao, setObservacao] = useState('');
   const [metodoPagamento, setMetodoPagamento] = useState('');
+  
+  // Cartão Fields
+  const [cartoes, setCartoes] = useState([]);
+  const [cartaoId, setCartaoId] = useState('');
+  const [isCartaoTerceiro, setIsCartaoTerceiro] = useState(false);
+  const [nomeCartaoTerceiro, setNomeCartaoTerceiro] = useState('');
+
   const [parcelado, setParcelado] = useState(false);
   const [totalParcelas, setTotalParcelas] = useState('');
   const [valorTotal, setValorTotal] = useState('');
@@ -174,9 +181,14 @@ export default function GastosVariaveisTab() {
       if (docSnap.exists()) setSaldos(docSnap.data());
     });
 
+    const unsubCartoes = onSnapshot(collection(db, 'usuarios', usuario.uid, 'cartoes'), (snap) => {
+      setCartoes(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
     return () => {
       unsubscribeGastos();
       unsubSaldos();
+      unsubCartoes();
     };
   }, [usuario, mesAtual, anoAtual]);
 
@@ -242,6 +254,9 @@ export default function GastosVariaveisTab() {
     setData(dataHojeISO());
     setObservacao('');
     setMetodoPagamento('');
+    setCartaoId('');
+    setIsCartaoTerceiro(false);
+    setNomeCartaoTerceiro('');
     setParcelado(false);
     setTotalParcelas('');
     setValorTotal('');
@@ -257,6 +272,9 @@ export default function GastosVariaveisTab() {
     setData(gasto.data);
     setObservacao(gasto.observacao || '');
     setMetodoPagamento(gasto.metodoPagamento || '');
+    setCartaoId(gasto.cartaoId || '');
+    setIsCartaoTerceiro(gasto.isCartaoTerceiro || false);
+    setNomeCartaoTerceiro(gasto.nomeCartaoTerceiro || '');
     setParcelado(!!gasto.parcelado);
     setTotalParcelas(gasto.totalParcelas ? String(gasto.totalParcelas) : '');
     setValorTotal(gasto.valorTotal ? String(gasto.valorTotal) : '');
@@ -274,6 +292,29 @@ export default function GastosVariaveisTab() {
 
     const [anoData, mesData] = data.split('-').map(Number);
 
+    const calcularFaturaRef = (data, diaFechamento) => {
+      const [ano, mes, dia] = data.split('-').map(Number);
+      let mesFatura = mes;
+      let anoFatura = ano;
+      if (dia > diaFechamento) {
+        mesFatura += 1;
+        if (mesFatura > 12) {
+          mesFatura = 1;
+          anoFatura += 1;
+        }
+      }
+      return `${anoFatura}-${String(mesFatura).padStart(2, '0')}`;
+    };
+
+    let cartao = null;
+    let baseFaturaRef = null;
+    if (metodoPagamento === 'Cartão de Crédito' && cartaoId && !isCartaoTerceiro) {
+      cartao = cartoes.find(c => c.id === cartaoId);
+      if (cartao) {
+        baseFaturaRef = calcularFaturaRef(data, cartao.diaFechamento);
+      }
+    }
+
     try {
       if (editandoId) {
         const dadosGasto = {
@@ -283,6 +324,10 @@ export default function GastosVariaveisTab() {
           data,
           observacao: observacao.trim(),
           metodoPagamento: metodoPagamento || null,
+          cartaoId: metodoPagamento === 'Cartão de Crédito' ? (isCartaoTerceiro ? null : cartaoId) : null,
+          isCartaoTerceiro: metodoPagamento === 'Cartão de Crédito' ? isCartaoTerceiro : false,
+          nomeCartaoTerceiro: metodoPagamento === 'Cartão de Crédito' && isCartaoTerceiro ? nomeCartaoTerceiro : null,
+          faturaRef: baseFaturaRef,
           mes: mesData - 1,
           ano: anoData,
           natureza,
@@ -297,6 +342,10 @@ export default function GastosVariaveisTab() {
         const grupoId = gerarGrupoId();
         const colRef = collection(db, 'usuarios', usuario.uid, 'despesas_variaveis');
 
+        let [baseAnoStr, baseMesStr] = baseFaturaRef ? baseFaturaRef.split('-') : [String(anoData), String(mesData)];
+        let faturaAno = Number(baseAnoStr);
+        let faturaMes = Number(baseMesStr);
+
         for (let i = 0; i < nParcelas; i++) {
           let parcelaMes = (mesData - 1) + i;
           let parcelaAno = anoData;
@@ -304,6 +353,14 @@ export default function GastosVariaveisTab() {
             parcelaMes -= 12;
             parcelaAno += 1;
           }
+
+          let calcFaturaMes = faturaMes + i;
+          let calcFaturaAno = faturaAno;
+          while (calcFaturaMes > 12) {
+            calcFaturaMes -= 12;
+            calcFaturaAno += 1;
+          }
+          const currFaturaRef = baseFaturaRef ? `${calcFaturaAno}-${String(calcFaturaMes).padStart(2, '0')}` : null;
 
           const diaOriginal = data.split('-')[2];
           const parcelaData = `${parcelaAno}-${String(parcelaMes + 1).padStart(2, '0')}-${diaOriginal}`;
@@ -316,6 +373,10 @@ export default function GastosVariaveisTab() {
             data: parcelaData,
             observacao: observacao.trim(),
             metodoPagamento: metodoPagamento || 'Cartão de Crédito',
+            cartaoId: metodoPagamento === 'Cartão de Crédito' ? (isCartaoTerceiro ? null : cartaoId) : null,
+            isCartaoTerceiro: metodoPagamento === 'Cartão de Crédito' ? isCartaoTerceiro : false,
+            nomeCartaoTerceiro: metodoPagamento === 'Cartão de Crédito' && isCartaoTerceiro ? nomeCartaoTerceiro : null,
+            faturaRef: currFaturaRef,
             mes: parcelaMes,
             ano: parcelaAno,
             parcelado: true,
@@ -335,6 +396,10 @@ export default function GastosVariaveisTab() {
           data,
           observacao: observacao.trim(),
           metodoPagamento: metodoPagamento || null,
+          cartaoId: metodoPagamento === 'Cartão de Crédito' ? (isCartaoTerceiro ? null : cartaoId) : null,
+          isCartaoTerceiro: metodoPagamento === 'Cartão de Crédito' ? isCartaoTerceiro : false,
+          nomeCartaoTerceiro: metodoPagamento === 'Cartão de Crédito' && isCartaoTerceiro ? nomeCartaoTerceiro : null,
+          faturaRef: baseFaturaRef,
           mes: mesData - 1,
           ano: anoData,
           parcelado: false,
@@ -522,6 +587,41 @@ export default function GastosVariaveisTab() {
               ))}
             </select>
           </div>
+
+          {metodoPagamento === 'Cartão de Crédito' && (
+            <div className="form-group" style={{ gridColumn: '1 / -1', background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <label className="form-label" style={{ marginBottom: 0 }}>Qual Cartão?</label>
+              
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <input 
+                  type="checkbox" 
+                  id="cartaoTerceiro" 
+                  checked={isCartaoTerceiro} 
+                  onChange={(e) => setIsCartaoTerceiro(e.target.checked)} 
+                  style={{ width: '20px', height: '20px' }}
+                />
+                <label htmlFor="cartaoTerceiro" style={{ fontSize: '0.9rem', cursor: 'pointer' }}>Usar cartão de terceiro (ex: Mãe, Cônjuge)</label>
+              </div>
+
+              {isCartaoTerceiro ? (
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  placeholder="Nome do dono do cartão (Ex: Cartão da Mãe)" 
+                  value={nomeCartaoTerceiro} 
+                  onChange={e => setNomeCartaoTerceiro(e.target.value)} 
+                  required 
+                />
+              ) : (
+                <select className="form-input" value={cartaoId} onChange={e => setCartaoId(e.target.value)} required={!isCartaoTerceiro}>
+                  <option value="">Selecione um dos seus cartões...</option>
+                  {cartoes.map(c => (
+                    <option key={c.id} value={c.id}>{c.nome} ({c.bandeira})</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
 
           <div className="form-group">
             <label className="form-label">Data</label>

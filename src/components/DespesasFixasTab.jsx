@@ -38,7 +38,6 @@ const CATEGORIAS = [
   'Academia',
   'Escola / Curso',
   'Condomínio',
-  'Cartão de Crédito',
   'Outros'
 ];
 
@@ -54,7 +53,6 @@ const CORES_CATEGORIAS = {
   'Academia': '#0984e3',
   'Escola / Curso': '#fdcb6e',
   'Condomínio': '#636e72',
-  'Cartão de Crédito': '#e84393',
   'Outros': '#b2bec3'
 };
 
@@ -67,7 +65,8 @@ const formInicial = {
   mesFim: '',
   anoFim: '',
   natureza: 'PESSOAL', // EMPRESA ou PESSOAL
-  isEsposa: false
+  isEsposa: false,
+  cartaoId: ''
 };
 
 function formatarMoeda(valor) {
@@ -113,6 +112,7 @@ export default function DespesasFixasTab() {
 
   const [todasDespesas, setTodasDespesas] = useState([]);
   const [saldos, setSaldos] = useState({});
+  const [cartoes, setCartoes] = useState([]);
   const [form, setForm] = useState(formInicial);
   const [editandoId, setEditandoId] = useState(null);
 
@@ -139,9 +139,15 @@ export default function DespesasFixasTab() {
       }
     });
 
+    // Snapshot Cartões
+    const unsubCartoes = onSnapshot(collection(db, 'usuarios', usuario.uid, 'cartoes'), (snap) => {
+      setCartoes(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
     return () => {
       unsubscribeDespesas();
       unsubSaldos();
+      unsubCartoes();
     };
   }, [usuario]);
 
@@ -220,7 +226,8 @@ export default function DespesasFixasTab() {
       vencimento: form.vencimento ? Number(form.vencimento) : null,
       recorrente: form.recorrente,
       natureza: form.natureza,
-      isEsposa: form.isEsposa
+      isEsposa: form.isEsposa,
+      cartaoId: form.cartaoId || null
     };
 
     if (!form.recorrente) {
@@ -265,7 +272,8 @@ export default function DespesasFixasTab() {
       mesFim: despesa.mesFim ?? '',
       anoFim: despesa.anoFim ?? '',
       natureza: despesa.natureza || 'PESSOAL',
-      isEsposa: despesa.isEsposa || false
+      isEsposa: despesa.isEsposa || false,
+      cartaoId: despesa.cartaoId || ''
     });
     setEditandoId(despesa.id);
   }
@@ -455,6 +463,25 @@ export default function DespesasFixasTab() {
                 <option key={cat} value={cat}>{cat}</option>
               ))}
             </select>
+          </div>
+
+          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+            <label htmlFor="cartaoId">💳 Vinculado ao Cartão (opcional)</label>
+            <select
+              id="cartaoId"
+              name="cartaoId"
+              value={form.cartaoId}
+              onChange={handleChange}
+              className="form-input"
+            >
+              <option value="">Nenhum (pagamento por fora, Pix, boleto)</option>
+              {cartoes.map(c => (
+                <option key={c.id} value={c.id}>{c.nome} ({c.bandeira})</option>
+              ))}
+            </select>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+              Se selecionado, essa assinatura será cobrada na fatura deste cartão todo mês.
+            </p>
           </div>
 
           <div className="nature-selector-container">

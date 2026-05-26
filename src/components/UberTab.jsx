@@ -147,6 +147,13 @@ export default function UberTab() {
   const [retiradaData, setRetiradaData] = useState(formatarDataChave(new Date()));
   const [salvandoRetirada, setSalvandoRetirada] = useState(false);
 
+  // ─── Handlers ───
+  const toggleCategoria = (cat) => {
+    setCategoriasSelecionadas(prev =>
+      prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
+    );
+  };
+
   // ─── Motivational Phrases Rotation ───
   useEffect(() => {
     const intervalo = setInterval(() => {
@@ -257,8 +264,15 @@ export default function UberTab() {
   const brutoNum = parseFloat(totalBruto) || 0;
   const gastosNum = parseFloat(gastosGerais) || 0;
   const liquidoNum = brutoNum - gastosNum;
-  const motoristaNum = liquidoNum * 0.7;
-  const empresaNum = liquidoNum * 0.3;
+  const pctEmpresaTotal = pctEmpresa; // Liquid
+  const pctManutencaoTotal = pctManutencao; // Bruto
+  const valorCaixinhasEmpresa = brutoNum * (pctManutencao / 100) + liquidoNum * (pctEmpresa / 100);
+
+  const pctPessoalTotal = pctEmergencia + pctLivre + pctContas;
+  const valorCaixinhasMotorista = brutoNum * (pctEmergencia / 100) + liquidoNum * (pctLivre / 100) + liquidoNum * (pctContas / 100);
+
+  const motoristaNum = valorCaixinhasMotorista;
+  const empresaNum = valorCaixinhasEmpresa;
   const kmNum = parseFloat(km) || 0;
   const viagensNum = parseInt(viagens, 10) || 0;
 
@@ -284,26 +298,32 @@ export default function UberTab() {
   // ─── Monthly totals ───
   const resumoMes = useMemo(() => {
     let totalLiquido = 0;
+    let totalBruto = 0;
     let totalKm = 0;
     let totalViagens = 0;
 
     registrosMes.forEach(r => {
       const bruto = r.totalBruto || 0;
       const gastos = r.gastosGerais || 0;
+      totalBruto += bruto;
       totalLiquido += bruto - gastos;
       totalKm += r.km || 0;
       totalViagens += r.viagens || 0;
     });
 
+    const totalCaixinhasEmpresa = totalBruto * (pctManutencao / 100) + totalLiquido * (pctEmpresa / 100);
+    const totalCaixinhasMotorista = totalBruto * (pctEmergencia / 100) + totalLiquido * (pctLivre / 100) + totalLiquido * (pctContas / 100);
+
     return {
+      bruto: totalBruto,
       liquido: totalLiquido,
-      motorista: totalLiquido * 0.7,
-      empresa: totalLiquido * 0.3,
+      motorista: totalCaixinhasMotorista,
+      empresa: totalCaixinhasEmpresa,
       km: totalKm,
       viagens: totalViagens,
       horas: somarHoras(registrosMes)
     };
-  }, [registrosMes]);
+  }, [registrosMes, pctManutencao, pctEmpresa, pctEmergencia, pctLivre, pctContas]);
 
   // ─── Line chart data ───
   const dadosGraficoLinha = useMemo(() => {
@@ -424,6 +444,15 @@ export default function UberTab() {
   const salvarConfiguracao = async (e) => {
     e.preventDefault();
     if (!usuario) return;
+    
+    const sumBruto = parseFloat(pctEmergencia||0) + parseFloat(pctManutencao||0);
+    const sumLiquido = parseFloat(pctEmpresa||0) + parseFloat(pctLivre||0) + parseFloat(pctContas||0);
+    
+    if (sumBruto > 100 || sumLiquido > 100) {
+      alert("As porcentagens não podem ultrapassar 100% em suas respectivas bases (Bruto e Líquido).");
+      return;
+    }
+
     setSalvandoConfig(true);
     try {
       const configRef = doc(db, 'usuarios', usuario.uid, 'configuracoes', 'caixinhas');
@@ -760,11 +789,11 @@ export default function UberTab() {
             <span className="summary-value">{formatarMoeda(liquidoNum)}</span>
           </div>
           <div className="summary-card summary-blue">
-            <span className="summary-label">Valor Motorista (70%)</span>
+            <span className="summary-label">Valor Pessoal / Salário</span>
             <span className="summary-value">{formatarMoeda(motoristaNum)}</span>
           </div>
           <div className="summary-card summary-purple">
-            <span className="summary-label">Valor Empresa (30%)</span>
+            <span className="summary-label">Valor Empresa / Custo</span>
             <span className="summary-value">{formatarMoeda(empresaNum)}</span>
           </div>
           <div className="summary-card summary-default">
@@ -793,11 +822,11 @@ export default function UberTab() {
             <span className="summary-value">{formatarMoeda(resumoMes.liquido)}</span>
           </div>
           <div className="summary-card summary-blue">
-            <span className="summary-label">Motorista (70%)</span>
+            <span className="summary-label">Pessoal / Salário</span>
             <span className="summary-value">{formatarMoeda(resumoMes.motorista)}</span>
           </div>
           <div className="summary-card summary-purple">
-            <span className="summary-label">Empresa (30%)</span>
+            <span className="summary-label">Empresa / Custo</span>
             <span className="summary-value">{formatarMoeda(resumoMes.empresa)}</span>
           </div>
           <div className="summary-card summary-default">
@@ -830,6 +859,36 @@ export default function UberTab() {
         {mostrarConfig && (
           <form className="caixinhas-config-panel" onSubmit={salvarConfiguracao}>
             <h3 className="config-title">⚙️ Ajustar Porcentagens do Banco Caixinhas</h3>
+            
+            <div style={{ marginBottom: '20px', background: 'rgba(0,0,0,0.2)', padding: '16px', borderRadius: '12px' }}>
+              <div style={{ marginBottom: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '6px' }}>
+                  <span>Alocação do <strong>Bruto</strong> (Emergência + Manutenção)</span>
+                  <span style={{ color: (parseFloat(pctEmergencia||0) + parseFloat(pctManutencao||0)) > 100 ? '#ff6b6b' : '#00d4aa', fontWeight: 'bold' }}>
+                    {parseFloat(pctEmergencia||0) + parseFloat(pctManutencao||0)}%
+                  </span>
+                </div>
+                <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden', display: 'flex' }}>
+                  <div style={{ width: `${Math.min(100, parseFloat(pctEmergencia||0))}%`, background: '#ffd93d' }} title="Emergência" />
+                  <div style={{ width: `${Math.min(100, parseFloat(pctManutencao||0))}%`, background: '#ff6b6b' }} title="Manutenção" />
+                </div>
+              </div>
+              
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '6px' }}>
+                  <span>Alocação do <strong>Líquido</strong> (Empresa + Livre + Contas)</span>
+                  <span style={{ color: (parseFloat(pctEmpresa||0) + parseFloat(pctLivre||0) + parseFloat(pctContas||0)) > 100 ? '#ff6b6b' : '#00d4aa', fontWeight: 'bold' }}>
+                    {parseFloat(pctEmpresa||0) + parseFloat(pctLivre||0) + parseFloat(pctContas||0)}%
+                  </span>
+                </div>
+                <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden', display: 'flex' }}>
+                  <div style={{ width: `${Math.min(100, parseFloat(pctEmpresa||0))}%`, background: '#6c5ce7' }} title="Empresa" />
+                  <div style={{ width: `${Math.min(100, parseFloat(pctLivre||0))}%`, background: '#00b894' }} title="Livre" />
+                  <div style={{ width: `${Math.min(100, parseFloat(pctContas||0))}%`, background: '#0984e3' }} title="Contas" />
+                </div>
+              </div>
+            </div>
+
             <div className="config-grid">
               <div className="config-group">
                 <label className="config-label">🚨 Reserva de Emergência (% Bruto)</label>
