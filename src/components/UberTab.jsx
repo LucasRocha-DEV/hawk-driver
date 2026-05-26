@@ -51,7 +51,7 @@ const CORES_GRAFICO = {
 };
 
 const CORES_PIZZA = {
-  'Emergência': '#ffd93d',
+  'Reserva de Emergência': '#ffd93d',
   'Manutenção': '#ff6b6b',
   'Empresa': '#6c5ce7',
   'Livre': '#00b894',
@@ -324,7 +324,7 @@ export default function UberTab() {
     const livre = liquidoNum * (pctLivre / 100);
     const contas = liquidoNum * (pctContas / 100);
     const itens = [
-      { name: 'Emergência', value: emergencia },
+      { name: 'Reserva de Emergência', value: emergencia },
       { name: 'Manutenção', value: manutencao },
       { name: 'Empresa', value: empresa },
       { name: 'Livre', value: livre },
@@ -466,7 +466,7 @@ export default function UberTab() {
           saldoUpdates[chaveId] = increment(valor);
           
           let nomeBonito = chaveId;
-          if (chaveId === 'emergencia') nomeBonito = 'Emergência';
+          if (chaveId === 'emergencia') nomeBonito = 'Reserva de Emergência';
           if (chaveId === 'manutencao') nomeBonito = 'Manutenção';
           if (chaveId === 'empresa') nomeBonito = 'Empresa';
           if (chaveId === 'livre') nomeBonito = 'Livre / Lazer';
@@ -832,7 +832,7 @@ export default function UberTab() {
             <h3 className="config-title">⚙️ Ajustar Porcentagens do Banco Caixinhas</h3>
             <div className="config-grid">
               <div className="config-group">
-                <label className="config-label">🚨 Emergência (% Bruto)</label>
+                <label className="config-label">🚨 Reserva de Emergência (% Bruto)</label>
                 <div className="config-input-wrapper">
                   <input
                     type="number"
@@ -926,7 +926,7 @@ export default function UberTab() {
           <div className="caixinhas-grid">
             {/* Emergência */}
             <div className={`caixinha-card ${registroDoDia?.caixinhasEnviadas ? 'caixinha-enviada' : ''}`}>
-              <span className="caixinha-label">🚨 Emergência ({pctEmergencia}% Bruto)</span>
+              <span className="caixinha-label">🚨 Reserva de Emergência ({pctEmergencia}% Bruto)</span>
               <span className="caixinha-valor">{formatarMoeda(brutoNum * (pctEmergencia / 100))}</span>
             </div>
 

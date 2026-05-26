@@ -15,7 +15,7 @@ import {
 } from 'firebase/firestore';
 
 const CAIXINHAS = [
-  { id: 'emergencia', nome: 'Emergência', emoji: '🚨', cor: '#ffd93d' },
+  { id: 'emergencia', nome: 'Reserva de Emergência', emoji: '🚨', cor: '#ffd93d' },
   { id: 'manutencao', nome: 'Manutenção', emoji: '🔧', cor: '#ff6b6b' },
   { id: 'empresa', nome: 'Empresa', emoji: '🏢', cor: '#6c5ce7' },
   { id: 'livre', nome: 'Livre / Lazer', emoji: '💸', cor: '#00b894' },
@@ -286,17 +286,18 @@ export default function PatrimonioTab() {
             return (
               <div key={cx.id} className="saldo-card" style={{ borderColor: cx.cor + '33', flexDirection: 'column', alignItems: 'stretch' }}>
                 <div className="saldo-card-accent" style={{ background: cx.cor }} />
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                  <div className="saldo-card-left">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%', padding: '4px 0' }}>
+                  <div className="saldo-card-left" style={{ display: 'flex', alignItems: 'center' }}>
                     <span className="saldo-card-emoji">{cx.emoji}</span>
                     <div className="saldo-card-info">
-                      <span className="saldo-card-nome">{cx.nome}</span>
-                      <span className="saldo-card-valor" style={{ color: cx.cor }}>{formatarMoeda(valor)}</span>
+                      <span className="saldo-card-nome" style={{ fontSize: '1.05rem' }}>{cx.nome}</span>
+                      <span className="saldo-card-valor" style={{ color: cx.cor, fontSize: '1.25rem' }}>{formatarMoeda(valor)}</span>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <button className="btn-sm" onClick={() => abrirModal(cx.id, 'SAIDA')} style={{ background: 'rgba(255,107,107,0.1)', color: '#ff6b6b', padding: '6px 10px' }}>- Retirar</button>
-                    <button className="btn-sm" onClick={() => setExtratoAberto(isOpen ? null : cx.id)} style={{ padding: '6px 10px' }}>📋 Extrato</button>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <button className="btn-sm" onClick={() => abrirModal(cx.id, 'SAIDA')} style={{ background: 'rgba(255,107,107,0.1)', color: '#ff6b6b' }}>➖ Retirar</button>
+                    <button className="btn-sm" onClick={() => abrirModal(cx.id, 'ENTRADA')} style={{ background: 'rgba(0,212,170,0.1)', color: '#00d4aa' }}>➕ Depósito</button>
+                    <button className="btn-sm" onClick={() => setExtratoAberto(isOpen ? null : cx.id)} style={{ background: 'rgba(255,255,255,0.05)', color: '#ddd' }}>📋 Extrato</button>
                   </div>
                 </div>
 

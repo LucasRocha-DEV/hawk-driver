@@ -626,7 +626,7 @@ export default function DespesasFixasTab() {
                   </optgroup>
                   <optgroup label="👤 Caixinhas Pessoais">
                     <option value="contas">💳 Contas (Saldo: {formatarMoeda(saldos.contas)})</option>
-                    <option value="emergencia">🚨 Emergência (Saldo: {formatarMoeda(saldos.emergencia)})</option>
+                    <option value="emergencia">🚨 Reserva de Emergência (Saldo: {formatarMoeda(saldos.emergencia)})</option>
                     <option value="livre">💸 Livre - Lazer (Saldo: {formatarMoeda(saldos.livre)})</option>
                   </optgroup>
                   <optgroup label="Outros">
