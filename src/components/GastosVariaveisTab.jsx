@@ -10,7 +10,10 @@ import {
   onSnapshot,
   query,
   where,
-  getDocs
+  getDocs,
+  setDoc,
+  increment,
+  serverTimestamp
 } from 'firebase/firestore';
 import {
   BarChart,
@@ -86,7 +89,6 @@ function dataHojeISO() {
   return `${y}-${m}-${d}`;
 }
 
-// Gera um ID único para agrupamento de parcelas
 function gerarGrupoId() {
   return Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
 }
@@ -95,12 +97,11 @@ export default function GastosVariaveisTab() {
   const { usuario } = useAuth();
   const agora = new Date();
 
-  // Navigation state
   const [mesAtual, setMesAtual] = useState(agora.getMonth());
   const [anoAtual, setAnoAtual] = useState(agora.getFullYear());
 
-  // Data state
   const [gastos, setGastos] = useState([]);
+  const [saldos, setSaldos] = useState({});
   const [carregando, setCarregando] = useState(true);
 
   // Form state
@@ -113,18 +114,19 @@ export default function GastosVariaveisTab() {
   const [parcelado, setParcelado] = useState(false);
   const [totalParcelas, setTotalParcelas] = useState('');
   const [valorTotal, setValorTotal] = useState('');
+  const [natureza, setNatureza] = useState('PESSOAL'); // EMPRESA ou PESSOAL
+  const [isEsposa, setIsEsposa] = useState(false);
   const [salvando, setSalvando] = useState(false);
 
-  // Edit state
   const [editandoId, setEditandoId] = useState(null);
-
-  // Filter state
   const [filtroCategoria, setFiltroCategoria] = useState('Todas');
-
-  // Confirmation dialog for deleting installments
   const [confirmarExclusao, setConfirmarExclusao] = useState(null);
 
-  // Month navigation
+  // Pagamento Inteligente
+  const [pagamentoModal, setPagamentoModal] = useState(null);
+  const [caixinhaFonte, setCaixinhaFonte] = useState('');
+  const [processandoPagamento, setProcessandoPagamento] = useState(false);
+
   const mesAnterior = () => {
     if (mesAtual === 0) {
       setMesAtual(11);
@@ -143,7 +145,6 @@ export default function GastosVariaveisTab() {
     }
   };
 
-  // Firestore listener — sem orderBy para evitar necessidade de índice composto
   useEffect(() => {
     if (!usuario) {
       setGastos([]);
@@ -159,26 +160,30 @@ export default function GastosVariaveisTab() {
       where('ano', '==', anoAtual)
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribeGastos = onSnapshot(q, (snapshot) => {
       const lista = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      // Ordenar client-side por data decrescente
       lista.sort((a, b) => (b.data || '').localeCompare(a.data || ''));
       setGastos(lista);
       setCarregando(false);
     }, (error) => {
-      console.error('Erro ao carregar gastos variáveis:', error);
+      console.error('Erro ao carregar gastos:', error);
       setCarregando(false);
     });
 
-    return () => unsubscribe();
+    const unsubSaldos = onSnapshot(doc(db, 'usuarios', usuario.uid, 'saldos', 'atual'), (docSnap) => {
+      if (docSnap.exists()) setSaldos(docSnap.data());
+    });
+
+    return () => {
+      unsubscribeGastos();
+      unsubSaldos();
+    };
   }, [usuario, mesAtual, anoAtual]);
 
-  // Reset filter when month changes
   useEffect(() => {
     setFiltroCategoria('Todas');
   }, [mesAtual, anoAtual]);
 
-  // Calculate installment value when valorTotal or totalParcelas change
   useEffect(() => {
     if (parcelado && valorTotal && totalParcelas) {
       const vTotal = parseFloat(valorTotal);
@@ -189,33 +194,26 @@ export default function GastosVariaveisTab() {
     }
   }, [parcelado, valorTotal, totalParcelas]);
 
-  // Filtered list
   const gastosFiltrados = useMemo(() => {
     if (filtroCategoria === 'Todas') return gastos;
     return gastos.filter(g => g.categoria === filtroCategoria);
   }, [gastos, filtroCategoria]);
 
-  // Categories that exist in data (for filter buttons)
   const categoriasPresentes = useMemo(() => {
     const set = new Set(gastos.map(g => g.categoria));
     return CATEGORIAS.filter(c => set.has(c));
   }, [gastos]);
 
-  // Summary calculations
   const resumo = useMemo(() => {
     const total = gastos.reduce((acc, g) => acc + Number(g.valor), 0);
     const quantidade = gastos.length;
     const media = quantidade > 0 ? total / quantidade : 0;
-
-    // Total no cartão de crédito
     const totalCartao = gastos
       .filter(g => g.metodoPagamento === 'Cartão de Crédito')
       .reduce((acc, g) => acc + Number(g.valor), 0);
-
     return { total, quantidade, media, totalCartao };
   }, [gastos]);
 
-  // Chart data
   const dadosGrafico = useMemo(() => {
     const porCategoria = {};
     gastos.forEach(g => {
@@ -231,14 +229,12 @@ export default function GastosVariaveisTab() {
       .sort((a, b) => b.total - a.total);
   }, [gastos]);
 
-  // Top 5 biggest expenses
   const top5 = useMemo(() => {
     return [...gastos]
       .sort((a, b) => Number(b.valor) - Number(a.valor))
       .slice(0, 5);
   }, [gastos]);
 
-  // Form handlers
   const limparFormulario = () => {
     setDescricao('');
     setCategoria('');
@@ -249,6 +245,8 @@ export default function GastosVariaveisTab() {
     setParcelado(false);
     setTotalParcelas('');
     setValorTotal('');
+    setNatureza('PESSOAL');
+    setIsEsposa(false);
     setEditandoId(null);
   };
 
@@ -262,6 +260,8 @@ export default function GastosVariaveisTab() {
     setParcelado(!!gasto.parcelado);
     setTotalParcelas(gasto.totalParcelas ? String(gasto.totalParcelas) : '');
     setValorTotal(gasto.valorTotal ? String(gasto.valorTotal) : '');
+    setNatureza(gasto.natureza || 'PESSOAL');
+    setIsEsposa(gasto.isEsposa || false);
     setEditandoId(gasto.id);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -276,7 +276,6 @@ export default function GastosVariaveisTab() {
 
     try {
       if (editandoId) {
-        // Edição simples (não recria parcelas)
         const dadosGasto = {
           descricao: descricao.trim(),
           categoria,
@@ -285,29 +284,27 @@ export default function GastosVariaveisTab() {
           observacao: observacao.trim(),
           metodoPagamento: metodoPagamento || null,
           mes: mesData - 1,
-          ano: anoData
+          ano: anoData,
+          natureza,
+          isEsposa
         };
         const docRef = doc(db, 'usuarios', usuario.uid, 'despesas_variaveis', editandoId);
         await updateDoc(docRef, dadosGasto);
       } else if (parcelado && totalParcelas && valorTotal) {
-        // Criar parcelas automaticamente
         const nParcelas = parseInt(totalParcelas, 10);
         const vTotal = parseFloat(valorTotal);
         const vParcela = parseFloat((vTotal / nParcelas).toFixed(2));
         const grupoId = gerarGrupoId();
-
         const colRef = collection(db, 'usuarios', usuario.uid, 'despesas_variaveis');
 
         for (let i = 0; i < nParcelas; i++) {
-          // Calcular mês/ano da parcela
-          let parcelaMes = (mesData - 1) + i; // mesData é 1-indexed, converter para 0-indexed
+          let parcelaMes = (mesData - 1) + i;
           let parcelaAno = anoData;
           while (parcelaMes > 11) {
             parcelaMes -= 12;
             parcelaAno += 1;
           }
 
-          // Data da parcela (mesmo dia, mês diferente)
           const diaOriginal = data.split('-')[2];
           const parcelaData = `${parcelaAno}-${String(parcelaMes + 1).padStart(2, '0')}-${diaOriginal}`;
 
@@ -324,11 +321,13 @@ export default function GastosVariaveisTab() {
             parcelado: true,
             parcelaAtual: i + 1,
             totalParcelas: nParcelas,
-            grupoParcelamento: grupoId
+            grupoParcelamento: grupoId,
+            natureza,
+            isEsposa,
+            pago: false
           });
         }
       } else {
-        // Gasto único (não parcelado)
         const dadosGasto = {
           descricao: descricao.trim(),
           categoria,
@@ -338,7 +337,10 @@ export default function GastosVariaveisTab() {
           metodoPagamento: metodoPagamento || null,
           mes: mesData - 1,
           ano: anoData,
-          parcelado: false
+          parcelado: false,
+          natureza,
+          isEsposa,
+          pago: false
         };
         const colRef = collection(db, 'usuarios', usuario.uid, 'despesas_variaveis');
         await addDoc(colRef, dadosGasto);
@@ -346,7 +348,7 @@ export default function GastosVariaveisTab() {
 
       limparFormulario();
     } catch (error) {
-      console.error('Erro ao salvar gasto:', error);
+      console.error('Erro ao salvar:', error);
     } finally {
       setSalvando(false);
     }
@@ -354,7 +356,6 @@ export default function GastosVariaveisTab() {
 
   const excluirGasto = async (gasto) => {
     if (gasto.parcelado && gasto.grupoParcelamento) {
-      // Mostrar confirmação para parcelas
       setConfirmarExclusao(gasto);
     } else {
       await excluirGastoUnico(gasto.id);
@@ -366,9 +367,7 @@ export default function GastosVariaveisTab() {
       const docRef = doc(db, 'usuarios', usuario.uid, 'despesas_variaveis', id);
       await deleteDoc(docRef);
       if (editandoId === id) limparFormulario();
-    } catch (error) {
-      console.error('Erro ao excluir gasto:', error);
-    }
+    } catch (error) { console.error(error); }
   };
 
   const excluirTodasParcelas = async (grupoId) => {
@@ -377,14 +376,10 @@ export default function GastosVariaveisTab() {
       const q = query(colRef, where('grupoParcelamento', '==', grupoId));
       const snapshot = await getDocs(q);
       const batch = [];
-      snapshot.forEach(docSnap => {
-        batch.push(deleteDoc(doc(db, 'usuarios', usuario.uid, 'despesas_variaveis', docSnap.id)));
-      });
+      snapshot.forEach(docSnap => batch.push(deleteDoc(doc(db, 'usuarios', usuario.uid, 'despesas_variaveis', docSnap.id))));
       await Promise.all(batch);
       limparFormulario();
-    } catch (error) {
-      console.error('Erro ao excluir parcelas:', error);
-    }
+    } catch (error) { console.error(error); }
   };
 
   const excluirParcelasRestantes = async (gasto) => {
@@ -395,35 +390,77 @@ export default function GastosVariaveisTab() {
       const batch = [];
       snapshot.forEach(docSnap => {
         const d = docSnap.data();
-        // Excluir parcelas desta em diante (parcelaAtual >= gasto.parcelaAtual)
         if (d.parcelaAtual >= gasto.parcelaAtual) {
           batch.push(deleteDoc(doc(db, 'usuarios', usuario.uid, 'despesas_variaveis', docSnap.id)));
         }
       });
       await Promise.all(batch);
       limparFormulario();
-    } catch (error) {
-      console.error('Erro ao excluir parcelas restantes:', error);
-    }
+    } catch (error) { console.error(error); }
   };
 
-  // Custom tooltip for chart
+  // ── Automação de Pagamentos ──
+  const acionarPagamento = (gasto) => {
+    if (gasto.pago) {
+      if (window.confirm('Desfazer pagamento? Não devolverá o saldo ao Patrimônio automaticamente.')) {
+        desfazerPagamento(gasto);
+      }
+      return;
+    }
+    setPagamentoModal(gasto);
+    setCaixinhaFonte('');
+  };
+
+  const desfazerPagamento = async (gasto) => {
+    const docRef = doc(db, 'usuarios', usuario.uid, 'despesas_variaveis', gasto.id);
+    await updateDoc(docRef, { pago: false });
+  };
+
+  const confirmarPagamento = async (e) => {
+    e.preventDefault();
+    if (!usuario || !pagamentoModal || !caixinhaFonte) return;
+    
+    setProcessandoPagamento(true);
+    try {
+      const valorConta = Number(pagamentoModal.valor);
+      
+      const docRef = doc(db, 'usuarios', usuario.uid, 'despesas_variaveis', pagamentoModal.id);
+      await updateDoc(docRef, { pago: true });
+
+      if (caixinhaFonte !== 'NENHUMA') {
+        await setDoc(doc(db, 'usuarios', usuario.uid, 'saldos', 'atual'), {
+          [caixinhaFonte]: increment(-valorConta),
+          atualizadoEm: serverTimestamp()
+        }, { merge: true });
+
+        let nomeCaixinhaFonte = caixinhaFonte.charAt(0).toUpperCase() + caixinhaFonte.slice(1);
+        if (caixinhaFonte === 'saldoConta') nomeCaixinhaFonte = 'Conta Principal';
+        
+        await addDoc(collection(db, 'usuarios', usuario.uid, 'transacoes_patrimonio'), {
+          caixinhaId: caixinhaFonte,
+          caixinhaNome: nomeCaixinhaFonte,
+          tipo: 'SAIDA',
+          valor: valorConta,
+          motivo: `Pgto Variável: ${pagamentoModal.descricao}`,
+          data: new Date().toISOString().split('T')[0],
+          criadoEm: serverTimestamp()
+        });
+      }
+      setPagamentoModal(null);
+    } catch (err) {
+      console.error(err);
+      alert('Falha ao processar pagamento inteligente.');
+    }
+    setProcessandoPagamento(false);
+  };
+
+
   const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
       return (
-        <div style={{
-          background: 'rgba(18, 18, 26, 0.95)',
-          border: '1px solid rgba(255,255,255,0.1)',
-          borderRadius: '8px',
-          padding: '10px 14px',
-          backdropFilter: 'blur(10px)'
-        }}>
-          <p style={{ color: '#fff', margin: 0, fontSize: '13px', fontFamily: 'DM Sans' }}>
-            {payload[0].payload.categoria}
-          </p>
-          <p style={{ color: '#00d4aa', margin: '4px 0 0', fontSize: '14px', fontWeight: 600, fontFamily: 'DM Sans' }}>
-            {formatarMoeda(payload[0].value)}
-          </p>
+        <div style={{ background: 'rgba(18, 18, 26, 0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '10px 14px', backdropFilter: 'blur(10px)' }}>
+          <p style={{ color: '#fff', margin: 0, fontSize: '13px', fontFamily: 'DM Sans' }}>{payload[0].payload.categoria}</p>
+          <p style={{ color: '#00d4aa', margin: '4px 0 0', fontSize: '14px', fontWeight: 600, fontFamily: 'DM Sans' }}>{formatarMoeda(payload[0].value)}</p>
         </div>
       );
     }
@@ -432,39 +469,23 @@ export default function GastosVariaveisTab() {
 
   return (
     <div className="tab-content">
-      {/* Month Navigation */}
       <div className="month-navigation">
         <button className="month-nav-btn" onClick={mesAnterior}>‹</button>
         <span className="month-nav-label">{MESES[mesAtual]} {anoAtual}</span>
         <button className="month-nav-btn" onClick={mesSeguinte}>›</button>
       </div>
 
-      {/* Quick Entry Form */}
       <div className="card">
-        <h3 className="card-title">
-          {editandoId ? '✎ Editar Gasto' : '➕ Novo Gasto Variável'}
-        </h3>
+        <h3 className="card-title">{editandoId ? '✎ Editar Gasto' : '➕ Novo Gasto Variável'}</h3>
         <form onSubmit={salvarGasto} className="form-grid">
           <div className="form-group">
             <label className="form-label">Descrição</label>
-            <input
-              type="text"
-              className="form-input"
-              placeholder="Ex: Almoço, Uber, Farmácia..."
-              value={descricao}
-              onChange={e => setDescricao(e.target.value)}
-              required
-            />
+            <input type="text" className="form-input" placeholder="Ex: Farmácia, Sapato..." value={descricao} onChange={e => setDescricao(e.target.value)} required />
           </div>
 
           <div className="form-group">
             <label className="form-label">Categoria</label>
-            <select
-              className="form-input"
-              value={categoria}
-              onChange={e => setCategoria(e.target.value)}
-              required
-            >
+            <select className="form-input" value={categoria} onChange={e => setCategoria(e.target.value)} required>
               <option value="">Selecione...</option>
               {CATEGORIAS.map(cat => (
                 <option key={cat} value={cat}>{cat}</option>
@@ -472,13 +493,29 @@ export default function GastosVariaveisTab() {
             </select>
           </div>
 
+          <div className="nature-selector-container">
+            <label className="form-label">Natureza do Gasto</label>
+            <div className="nature-buttons">
+              <div className={`nature-btn ${natureza === 'EMPRESA' ? 'active-empresa' : ''}`} onClick={() => setNatureza('EMPRESA')}>
+                <span className="nature-icon">🏢</span>
+                <span className="nature-label">Custo Empresa</span>
+              </div>
+              <div className={`nature-btn ${natureza === 'PESSOAL' ? 'active-pessoal' : ''}`} onClick={() => setNatureza('PESSOAL')}>
+                <span className="nature-icon">👤</span>
+                <span className="nature-label">Custo Pessoal</span>
+              </div>
+            </div>
+            {natureza === 'PESSOAL' && (
+              <div className={`wife-toggle-container ${isEsposa ? 'active-wife' : ''}`} onClick={() => setIsEsposa(!isEsposa)}>
+                <div className="wife-toggle-checkbox">{isEsposa ? '✅' : '⬜'}</div>
+                <div className="wife-toggle-text">👩 Gasto da Esposa? <span className="wife-hint">(Identifica separadamente)</span></div>
+              </div>
+            )}
+          </div>
+
           <div className="form-group">
             <label className="form-label">💳 Método de Pagamento</label>
-            <select
-              className="form-input"
-              value={metodoPagamento}
-              onChange={e => setMetodoPagamento(e.target.value)}
-            >
+            <select className="form-input" value={metodoPagamento} onChange={e => setMetodoPagamento(e.target.value)}>
               <option value="">Selecione...</option>
               {METODOS_PAGAMENTO.map(m => (
                 <option key={m} value={m}>{m}</option>
@@ -488,151 +525,68 @@ export default function GastosVariaveisTab() {
 
           <div className="form-group">
             <label className="form-label">Data</label>
-            <input
-              type="date"
-              className="form-input"
-              value={data}
-              onChange={e => setData(e.target.value)}
-              required
-            />
+            <input type="date" className="form-input" value={data} onChange={e => setData(e.target.value)} required />
           </div>
 
-          {/* Toggle Parcelado */}
           {!editandoId && (
             <div className="form-group form-group-toggle" style={{ gridColumn: '1 / -1' }}>
               <label className="toggle-label">
                 <span className="toggle-text">
                   💳 Compra Parcelada?
-                  <span className="toggle-hint">
-                    {parcelado ? 'Criar parcelas nos meses seguintes' : 'Gasto à vista'}
-                  </span>
+                  <span className="toggle-hint">{parcelado ? 'Criar parcelas' : 'À vista'}</span>
                 </span>
-                <div
-                  className={`toggle-switch ${parcelado ? 'toggle-on' : ''}`}
-                  onClick={() => setParcelado(!parcelado)}
-                >
+                <div className={`toggle-switch ${parcelado ? 'toggle-on' : ''}`} onClick={() => setParcelado(!parcelado)}>
                   <div className="toggle-knob" />
                 </div>
               </label>
             </div>
           )}
 
-          {/* Modo Parcela Existente — para itens já parcelados no cartão */}
           {editandoId && (
             <div className="form-group form-group-toggle" style={{ gridColumn: '1 / -1' }}>
               <label className="toggle-label">
-                <span className="toggle-text">
-                  📋 Já é uma parcela em andamento?
-                  <span className="toggle-hint">
-                    {parcelado ? 'Marcar como parcela (ex: 3/12)' : 'Gasto avulso'}
-                  </span>
-                </span>
-                <div
-                  className={`toggle-switch ${parcelado ? 'toggle-on' : ''}`}
-                  onClick={() => setParcelado(!parcelado)}
-                >
+                <span className="toggle-text">📋 Já é uma parcela em andamento?</span>
+                <div className={`toggle-switch ${parcelado ? 'toggle-on' : ''}`} onClick={() => setParcelado(!parcelado)}>
                   <div className="toggle-knob" />
                 </div>
               </label>
             </div>
           )}
 
-          {/* Campos de parcelamento */}
           {parcelado && !editandoId && (
             <>
               <div className="form-group">
-                <label className="form-label">💰 Valor Total da Compra (R$)</label>
-                <input
-                  type="number"
-                  className="form-input"
-                  placeholder="Ex: 3000.00"
-                  step="0.01"
-                  min="0.01"
-                  value={valorTotal}
-                  onChange={e => setValorTotal(e.target.value)}
-                  required={parcelado}
-                />
+                <label className="form-label">💰 Valor Total (R$)</label>
+                <input type="number" className="form-input" step="0.01" min="0.01" value={valorTotal} onChange={e => setValorTotal(e.target.value)} required={parcelado} />
               </div>
-
               <div className="form-group">
-                <label className="form-label">🔢 Número de Parcelas</label>
-                <input
-                  type="number"
-                  className="form-input"
-                  placeholder="Ex: 12"
-                  min="2"
-                  max="48"
-                  value={totalParcelas}
-                  onChange={e => setTotalParcelas(e.target.value)}
-                  required={parcelado}
-                />
+                <label className="form-label">🔢 Parcelas</label>
+                <input type="number" className="form-input" min="2" max="48" value={totalParcelas} onChange={e => setTotalParcelas(e.target.value)} required={parcelado} />
               </div>
-
-              {valorTotal && totalParcelas && (
-                <div className="parcela-preview" style={{ gridColumn: '1 / -1' }}>
-                  <div className="parcela-preview-card">
-                    <span className="parcela-preview-label">Valor de cada parcela:</span>
-                    <span className="parcela-preview-valor">
-                      {formatarMoeda(parseFloat(valorTotal) / parseInt(totalParcelas, 10))}
-                    </span>
-                    <span className="parcela-preview-info">
-                      {totalParcelas}x de {formatarMoeda(parseFloat(valorTotal) / parseInt(totalParcelas, 10))}
-                    </span>
-                  </div>
-                </div>
-              )}
             </>
           )}
 
-          {/* Valor (para gasto à vista) */}
           {!parcelado && (
             <div className="form-group">
               <label className="form-label">Valor (R$)</label>
-              <input
-                type="number"
-                className="form-input"
-                placeholder="0,00"
-                step="0.01"
-                min="0.01"
-                value={valor}
-                onChange={e => setValor(e.target.value)}
-                required
-              />
+              <input type="number" className="form-input" step="0.01" min="0.01" value={valor} onChange={e => setValor(e.target.value)} required />
             </div>
           )}
 
           <div className="form-group" style={{ gridColumn: '1 / -1' }}>
             <label className="form-label">Observação (opcional)</label>
-            <input
-              type="text"
-              className="form-input"
-              placeholder="Detalhes adicionais..."
-              value={observacao}
-              onChange={e => setObservacao(e.target.value)}
-            />
+            <input type="text" className="form-input" value={observacao} onChange={e => setObservacao(e.target.value)} />
           </div>
 
           <div className="form-actions" style={{ gridColumn: '1 / -1' }}>
             <button type="submit" className="btn-primary" disabled={salvando}>
-              {salvando
-                ? 'Salvando...'
-                : editandoId
-                  ? '💾 Salvar Alteração'
-                  : parcelado
-                    ? `💳 Criar ${totalParcelas || '?'}x Parcelas`
-                    : '➕ Adicionar Gasto'
-              }
+              {salvando ? 'Salvando...' : editandoId ? '💾 Salvar Alteração' : parcelado ? `💳 Criar ${totalParcelas || '?'}x Parcelas` : '➕ Adicionar Gasto'}
             </button>
-            {editandoId && (
-              <button type="button" className="btn-secondary" onClick={limparFormulario}>
-                Cancelar
-              </button>
-            )}
+            {editandoId && <button type="button" className="btn-secondary" onClick={limparFormulario}>Cancelar</button>}
           </div>
         </form>
       </div>
 
-      {/* Monthly Summary Cards — Design Profissional */}
       <div className="metric-cards-grid">
         <div className="metric-card">
           <div className="metric-card-accent" style={{ background: 'linear-gradient(135deg, #ff6b6b, #ee5a24)' }} />
@@ -647,61 +601,23 @@ export default function GastosVariaveisTab() {
           <div className="metric-card-icon">📊</div>
           <div className="metric-card-body">
             <span className="metric-card-label">Quantidade</span>
-            <span className="metric-card-value" style={{ color: '#6c5ce7' }}>{resumo.quantidade} {resumo.quantidade === 1 ? 'gasto' : 'gastos'}</span>
+            <span className="metric-card-value" style={{ color: '#6c5ce7' }}>{resumo.quantidade}</span>
           </div>
         </div>
-        <div className="metric-card">
-          <div className="metric-card-accent" style={{ background: 'linear-gradient(135deg, #ffd93d, #f0932b)' }} />
-          <div className="metric-card-icon">📈</div>
-          <div className="metric-card-body">
-            <span className="metric-card-label">Média por Gasto</span>
-            <span className="metric-card-value" style={{ color: '#ffd93d' }}>{formatarMoeda(resumo.media)}</span>
-          </div>
-        </div>
-        {resumo.totalCartao > 0 && (
-          <div className="metric-card">
-            <div className="metric-card-accent" style={{ background: 'linear-gradient(135deg, #e84393, #fd79a8)' }} />
-            <div className="metric-card-icon">💳</div>
-            <div className="metric-card-body">
-              <span className="metric-card-label">No Cartão de Crédito</span>
-              <span className="metric-card-value" style={{ color: '#e84393' }}>{formatarMoeda(resumo.totalCartao)}</span>
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* Bar Chart */}
       {dadosGrafico.length > 0 && (
         <div className="card">
           <h3 className="card-title">📊 Total por Categoria</h3>
           <div style={{ width: '100%', height: 340 }}>
             <ResponsiveContainer>
-              <BarChart
-                data={dadosGrafico}
-                margin={{ top: 10, right: 20, left: 10, bottom: 60 }}
-              >
+              <BarChart data={dadosGrafico} margin={{ top: 10, right: 20, left: 10, bottom: 60 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                <XAxis
-                  dataKey="categoria"
-                  tick={{ fill: '#a0a0b8', fontSize: 11, fontFamily: 'DM Sans' }}
-                  angle={-45}
-                  textAnchor="end"
-                  interval={0}
-                  height={80}
-                  axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-                  tickLine={false}
-                />
-                <YAxis
-                  tick={{ fill: '#a0a0b8', fontSize: 11, fontFamily: 'DM Sans' }}
-                  axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-                  tickLine={false}
-                  tickFormatter={(v) => `R$ ${v}`}
-                />
+                <XAxis dataKey="categoria" tick={{ fill: '#a0a0b8', fontSize: 11 }} angle={-45} textAnchor="end" interval={0} height={80} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} tickLine={false} />
+                <YAxis tick={{ fill: '#a0a0b8', fontSize: 11 }} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} tickLine={false} tickFormatter={(v) => `R$ ${v}`} />
                 <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
                 <Bar dataKey="total" radius={[6, 6, 0, 0]} maxBarSize={50}>
-                  {dadosGrafico.map((entry, index) => (
-                    <Cell key={index} fill={entry.cor} />
-                  ))}
+                  {dadosGrafico.map((entry, index) => <Cell key={index} fill={entry.cor} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -709,198 +625,116 @@ export default function GastosVariaveisTab() {
         </div>
       )}
 
-      {/* Top 5 Biggest Expenses */}
-      {top5.length > 0 && (
-        <div className="card">
-          <h3 className="card-title">🏆 Top 5 Maiores Gastos</h3>
-          <div className="top5-list">
-            {top5.map((gasto, index) => (
-              <div key={gasto.id} className="top5-item">
-                <span className="top5-position" style={{
-                  background: index === 0
-                    ? 'linear-gradient(135deg, #ffd93d, #f0932b)'
-                    : index === 1
-                      ? 'linear-gradient(135deg, #b2bec3, #636e72)'
-                      : index === 2
-                        ? 'linear-gradient(135deg, #e17055, #d63031)'
-                        : 'rgba(255,255,255,0.08)'
-                }}>
-                  {index + 1}º
-                </span>
-                <div className="top5-info">
-                  <span className="top5-descricao">
-                    {gasto.descricao}
-                    {gasto.parcelado && (
-                      <span className="badge-parcela">{gasto.parcelaAtual}/{gasto.totalParcelas}</span>
-                    )}
-                  </span>
-                  <span
-                    className="categoria-badge"
-                    style={{ background: CORES_CATEGORIAS[gasto.categoria] || '#b2bec3' }}
-                  >
-                    {gasto.categoria}
-                  </span>
-                </div>
-                <span className="top5-valor">{formatarMoeda(gasto.valor)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Category Filter */}
-      {categoriasPresentes.length > 0 && (
-        <div className="card">
-          <h3 className="card-title">🔍 Filtrar por Categoria</h3>
-          <div className="filter-buttons">
-            <button
-              className={`filter-btn ${filtroCategoria === 'Todas' ? 'filter-btn-active' : ''}`}
-              onClick={() => setFiltroCategoria('Todas')}
-            >
-              Todas
-            </button>
-            {categoriasPresentes.map(cat => (
-              <button
-                key={cat}
-                className={`filter-btn ${filtroCategoria === cat ? 'filter-btn-active' : ''}`}
-                style={filtroCategoria === cat ? { background: CORES_CATEGORIAS[cat], borderColor: CORES_CATEGORIAS[cat] } : {}}
-                onClick={() => setFiltroCategoria(cat)}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Expense List */}
       <div className="card">
-        <h3 className="card-title">
-          📋 Gastos de {MESES[mesAtual]}
-          {filtroCategoria !== 'Todas' && (
-            <span className="filter-indicator"> — {filtroCategoria}</span>
-          )}
-        </h3>
-
+        <h3 className="card-title">📋 Gastos de {MESES[mesAtual]}</h3>
         {carregando ? (
           <div className="loading-state">Carregando gastos...</div>
         ) : gastosFiltrados.length === 0 ? (
-          <div className="empty-state">
-            {gastos.length === 0
-              ? 'Nenhum gasto registrado neste mês.'
-              : `Nenhum gasto na categoria "${filtroCategoria}".`
-            }
-          </div>
+          <div className="empty-state">Nenhum gasto registrado neste mês.</div>
         ) : (
           <div className="expense-list">
-            {gastosFiltrados.map(gasto => (
-              <div key={gasto.id} className="expense-item">
-                <div className="expense-item-header">
-                  <div className="expense-item-left">
-                    <span className="expense-date">{formatarData(gasto.data)}</span>
-                    <span className="expense-descricao">
-                      {gasto.descricao}
-                      {gasto.parcelado && (
-                        <span className="badge-parcela">
-                          {gasto.parcelaAtual}/{gasto.totalParcelas}
+            {gastosFiltrados.map(gasto => {
+              let tagNaturezaCor = gasto.natureza === 'EMPRESA' ? '#a29bfe' : '#74b9ff';
+              let tagNaturezaIcone = gasto.natureza === 'EMPRESA' ? '🏢' : '👤';
+              if (gasto.isEsposa) { tagNaturezaCor = '#fd79a8'; tagNaturezaIcone = '👩'; }
+
+              return (
+                <div key={gasto.id} className={`expense-item glass-card${gasto.pago ? ' expense-paid' : ''}`}>
+                  <div className="expense-info">
+                    <div className="expense-header-row">
+                      <div className="expense-item-left" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <span className="expense-date">{formatarData(gasto.data)}</span>
+                        <span className="expense-descricao" style={{ textDecoration: gasto.pago ? 'line-through' : 'none' }}>
+                          {gasto.descricao}
+                          {gasto.parcelado && <span className="badge-parcela">{gasto.parcelaAtual}/{gasto.totalParcelas}</span>}
                         </span>
-                      )}
-                    </span>
-                    <span
-                      className="categoria-badge"
-                      style={{ background: CORES_CATEGORIAS[gasto.categoria] || '#b2bec3' }}
-                    >
-                      {gasto.categoria}
-                    </span>
-                    {gasto.metodoPagamento && (
-                      <span className="metodo-badge">
-                        {gasto.metodoPagamento === 'Cartão de Crédito' ? '💳' :
-                         gasto.metodoPagamento === 'Cartão de Débito' ? '💳' :
-                         gasto.metodoPagamento === 'PIX' ? '⚡' :
-                         gasto.metodoPagamento === 'Dinheiro' ? '💵' : '📄'}
-                        {' '}{gasto.metodoPagamento}
-                      </span>
-                    )}
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                          <span className="expense-categoria-badge" style={{ background: CORES_CATEGORIAS[gasto.categoria] || '#b2bec3' }}>{gasto.categoria}</span>
+                          <span className="expense-categoria-badge" style={{ backgroundColor: tagNaturezaCor, color: '#111' }}>
+                            {tagNaturezaIcone} {gasto.natureza === 'EMPRESA' ? 'Empresa' : (gasto.isEsposa ? 'Esposa' : 'Pessoal')}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="expense-item-right" style={{ textAlign: 'right' }}>
+                        <span className="expense-valor" style={{ color: gasto.pago ? 'var(--text-secondary)' : '#ff6b6b' }}>{formatarMoeda(gasto.valor)}</span>
+                        {gasto.pago ? (
+                          <div style={{ fontSize: '0.8rem', color: '#00d4aa', fontWeight: 'bold' }}>✅ Pago</div>
+                        ) : (
+                          <div style={{ fontSize: '0.8rem', color: '#ff6b6b' }}>Pendente</div>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <div className="expense-item-right">
-                    <span className="expense-valor">{formatarMoeda(gasto.valor)}</span>
-                    {gasto.parcelado && gasto.valorTotal && (
-                      <span className="expense-valor-total-info">
-                        Total: {formatarMoeda(gasto.valorTotal)}
-                      </span>
-                    )}
+                  <div className="expense-actions" style={{ marginTop: '12px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '12px' }}>
                     <button
-                      className="btn-icon btn-edit"
-                      onClick={() => iniciarEdicao(gasto)}
-                      title="Editar"
+                      className={`action-btn${gasto.pago ? ' action-undo' : ' action-check'}`}
+                      onClick={() => acionarPagamento(gasto)}
+                      title={gasto.pago ? 'Desfazer Pagamento' : 'Pagar com Automação'}
                     >
-                      ✎
+                      {gasto.pago ? '↩' : '✓'}
                     </button>
-                    <button
-                      className="btn-icon btn-delete"
-                      onClick={() => excluirGasto(gasto)}
-                      title="Excluir"
-                    >
-                      ✕
-                    </button>
+                    <button className="action-btn action-edit" onClick={() => iniciarEdicao(gasto)}>✎</button>
+                    <button className="action-btn action-delete" onClick={() => excluirGasto(gasto)}>✕</button>
                   </div>
                 </div>
-                {gasto.observacao && (
-                  <div className="expense-observacao">
-                    💬 {gasto.observacao}
-                  </div>
-                )}
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
 
-      {/* Modal de Confirmação de Exclusão de Parcelas */}
       {confirmarExclusao && (
         <div className="modal-overlay" onClick={() => setConfirmarExclusao(null)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <h3 className="modal-title">🗑️ Excluir Parcela</h3>
-            <p className="modal-descricao">
-              <strong>{confirmarExclusao.descricao}</strong> — Parcela {confirmarExclusao.parcelaAtual}/{confirmarExclusao.totalParcelas}
-            </p>
-            <p className="modal-texto">O que deseja fazer?</p>
-
+            <p className="modal-descricao"><strong>{confirmarExclusao.descricao}</strong> — Parcela {confirmarExclusao.parcelaAtual}/{confirmarExclusao.totalParcelas}</p>
             <div className="modal-actions">
-              <button
-                className="modal-btn modal-btn-danger"
-                onClick={async () => {
-                  await excluirGastoUnico(confirmarExclusao.id);
-                  setConfirmarExclusao(null);
-                }}
-              >
-                🗑️ Excluir Apenas Esta Parcela
-              </button>
-              <button
-                className="modal-btn modal-btn-warning"
-                onClick={async () => {
-                  await excluirParcelasRestantes(confirmarExclusao);
-                  setConfirmarExclusao(null);
-                }}
-              >
-                ⏩ Excluir Esta e as Restantes
-              </button>
-              <button
-                className="modal-btn modal-btn-danger-full"
-                onClick={async () => {
-                  await excluirTodasParcelas(confirmarExclusao.grupoParcelamento);
-                  setConfirmarExclusao(null);
-                }}
-              >
-                💥 Excluir Todas as Parcelas
-              </button>
-              <button
-                className="modal-btn modal-btn-cancel"
-                onClick={() => setConfirmarExclusao(null)}
-              >
-                Cancelar
-              </button>
+              <button className="modal-btn modal-btn-danger" onClick={async () => { await excluirGastoUnico(confirmarExclusao.id); setConfirmarExclusao(null); }}>Excluir Apenas Esta Parcela</button>
+              <button className="modal-btn modal-btn-warning" onClick={async () => { await excluirParcelasRestantes(confirmarExclusao); setConfirmarExclusao(null); }}>Excluir Esta e as Restantes</button>
+              <button className="modal-btn modal-btn-danger-full" onClick={async () => { await excluirTodasParcelas(confirmarExclusao.grupoParcelamento); setConfirmarExclusao(null); }}>Excluir Todas as Parcelas</button>
+              <button className="modal-btn modal-btn-cancel" onClick={() => setConfirmarExclusao(null)}>Cancelar</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {pagamentoModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
+          <div className="section-card" style={{ width: '90%', maxWidth: '450px', background: '#16162a', padding: '32px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.3rem', color: '#fff' }}>✅ Confirmar Pagamento</h3>
+            
+            <div style={{ background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '12px', marginBottom: '24px' }}>
+              <div style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>Pagando: <strong style={{ color: '#fff' }}>{pagamentoModal.descricao}</strong></div>
+              <div style={{ fontSize: '1.4rem', color: '#ff6b6b', fontWeight: 'bold', marginTop: '8px' }}>{formatarMoeda(pagamentoModal.valor)}</div>
+            </div>
+
+            <form onSubmit={confirmarPagamento}>
+              <div className="form-group">
+                <label className="form-label" style={{ fontSize: '1rem' }}>🧠 De onde esse dinheiro vai sair?</label>
+                <select className="form-input" required value={caixinhaFonte} onChange={e => setCaixinhaFonte(e.target.value)} style={{ background: '#0a0a16', padding: '12px' }}>
+                  <option value="" disabled>Escolha a fonte pagadora...</option>
+                  <optgroup label="🏢 Caixinhas Empresa">
+                    <option value="empresa">🏢 Empresa (Saldo: {formatarMoeda(saldos.empresa)})</option>
+                    <option value="manutencao">🔧 Manutenção (Saldo: {formatarMoeda(saldos.manutencao)})</option>
+                  </optgroup>
+                  <optgroup label="👤 Caixinhas Pessoais">
+                    <option value="contas">💳 Contas (Saldo: {formatarMoeda(saldos.contas)})</option>
+                    <option value="emergencia">🚨 Emergência (Saldo: {formatarMoeda(saldos.emergencia)})</option>
+                    <option value="livre">💸 Livre - Lazer (Saldo: {formatarMoeda(saldos.livre)})</option>
+                  </optgroup>
+                  <optgroup label="Outros">
+                    <option value="saldoConta">🏦 Conta Principal (Saldo: {formatarMoeda(saldos.saldoConta)})</option>
+                    <option value="NENHUMA">❌ Já paguei por fora (Apenas dar baixa)</option>
+                  </optgroup>
+                </select>
+              </div>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+                <button type="submit" className="btn-primary" style={{ flex: 1, padding: '14px' }} disabled={processandoPagamento || !caixinhaFonte}>
+                  {processandoPagamento ? 'Processando...' : 'Confirmar'}
+                </button>
+                <button type="button" className="btn-secondary" onClick={() => setPagamentoModal(null)} style={{ padding: '14px 24px' }}>Cancelar</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

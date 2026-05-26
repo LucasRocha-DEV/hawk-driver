@@ -173,20 +173,20 @@ export default function PatrimonioTab() {
       <div className="patrimonio-section">
         <h3 className="patrimonio-section-title">🏦 Saldo da Conta Bancária Livre</h3>
         <div className="saldo-card saldo-card-conta" style={{ flexWrap: 'wrap' }}>
-          <div className="saldo-card-left" style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="saldo-card-left" style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <span className="saldo-card-emoji">🏦</span>
               <div className="saldo-card-info">
                 <span className="saldo-card-nome">Conta Principal</span>
-                <span className="saldo-card-valor" style={{ color: '#00d4aa' }}>
+                <span className="saldo-card-valor" style={{ color: '#00d4aa', fontSize: '1.4rem' }}>
                   {formatarMoeda(saldos.saldoConta)}
                 </span>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button className="btn-sm" onClick={() => abrirModal('saldoConta', 'SAIDA')} style={{ background: 'rgba(255,107,107,0.15)', color: '#ff6b6b' }}>- Retirar</button>
-              <button className="btn-sm" onClick={() => abrirModal('saldoConta', 'ENTRADA')} style={{ background: 'rgba(0,212,170,0.15)', color: '#00d4aa' }}>+ Depósito</button>
-              <button className="btn-sm" onClick={() => setExtratoAberto(extratoAberto === 'saldoConta' ? null : 'saldoConta')}>📋 Extrato</button>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-start' }}>
+              <button className="btn-sm" onClick={() => abrirModal('saldoConta', 'SAIDA')} style={{ background: 'rgba(255,107,107,0.1)', color: '#ff6b6b' }}>➖ Retirar</button>
+              <button className="btn-sm" onClick={() => abrirModal('saldoConta', 'ENTRADA')} style={{ background: 'rgba(0,212,170,0.1)', color: '#00d4aa' }}>➕ Depósito</button>
+              <button className="btn-sm" onClick={() => setExtratoAberto(extratoAberto === 'saldoConta' ? null : 'saldoConta')} style={{ background: 'rgba(255,255,255,0.05)', color: '#ddd' }}>📋 Extrato</button>
             </div>
           </div>
           
@@ -216,37 +216,32 @@ export default function PatrimonioTab() {
         </div>
       </div>
 
-      {/* Caixinhas */}
+      {/* Caixinhas do Negócio (Empresa) */}
       <div className="patrimonio-section">
-        <h3 className="patrimonio-section-title">📦 Caixinhas de Distribuição</h3>
+        <h3 className="patrimonio-section-title">🏢 Custos Operacionais & Negócio</h3>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '16px' }}>
+          O carro é sua ferramenta. Esses fundos pagam o financiamento, seguro, lavagem e manutenção do seu instrumento de trabalho.
+        </p>
         <div className="caixinhas-saldo-grid">
-          {CAIXINHAS.map(cx => {
+          {CAIXINHAS.filter(c => c.id === 'empresa' || c.id === 'manutencao').map(cx => {
             const valor = Number(saldos[cx.id]) || 0;
             const isOpen = extratoAberto === cx.id;
 
             return (
-              <div
-                key={cx.id}
-                className="saldo-card"
-                style={{ borderColor: cx.cor + '33', flexDirection: 'column', alignItems: 'stretch' }}
-              >
+              <div key={cx.id} className="saldo-card" style={{ borderColor: cx.cor + '33', flexDirection: 'column', alignItems: 'stretch' }}>
                 <div className="saldo-card-accent" style={{ background: cx.cor }} />
-                
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                  <div className="saldo-card-left">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%', padding: '4px 0' }}>
+                  <div className="saldo-card-left" style={{ display: 'flex', alignItems: 'center' }}>
                     <span className="saldo-card-emoji">{cx.emoji}</span>
                     <div className="saldo-card-info">
-                      <span className="saldo-card-nome">{cx.nome}</span>
-                      <span className="saldo-card-valor" style={{ color: cx.cor }}>
-                        {formatarMoeda(valor)}
-                      </span>
+                      <span className="saldo-card-nome" style={{ fontSize: '1.05rem' }}>{cx.nome}</span>
+                      <span className="saldo-card-valor" style={{ color: cx.cor, fontSize: '1.25rem' }}>{formatarMoeda(valor)}</span>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <button className="btn-sm" onClick={() => abrirModal(cx.id, 'SAIDA')} style={{ background: 'rgba(255,107,107,0.1)', color: '#ff6b6b', padding: '6px 10px' }}>- Retirar</button>
-                    <button className="btn-sm" onClick={() => setExtratoAberto(isOpen ? null : cx.id)} style={{ padding: '6px 10px' }}>
-                      📋 Extrato
-                    </button>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <button className="btn-sm" onClick={() => abrirModal(cx.id, 'SAIDA')} style={{ background: 'rgba(255,107,107,0.1)', color: '#ff6b6b' }}>➖ Retirar</button>
+                    <button className="btn-sm" onClick={() => abrirModal(cx.id, 'ENTRADA')} style={{ background: 'rgba(0,212,170,0.1)', color: '#00d4aa' }}>➕ Depósito</button>
+                    <button className="btn-sm" onClick={() => setExtratoAberto(isOpen ? null : cx.id)} style={{ background: 'rgba(255,255,255,0.05)', color: '#ddd' }}>📋 Extrato</button>
                   </div>
                 </div>
 
@@ -264,9 +259,62 @@ export default function PatrimonioTab() {
                               <span>{t.motivo}</span>
                               <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>{formatarData(t.data)}</div>
                             </div>
-                            <span style={{ fontWeight: 'bold', color: t.tipo === 'ENTRADA' ? cx.cor : '#ff6b6b' }}>
-                              {formatarMoeda(t.valor)}
-                            </span>
+                            <span style={{ fontWeight: 'bold', color: t.tipo === 'ENTRADA' ? cx.cor : '#ff6b6b' }}>{formatarMoeda(t.valor)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Caixinhas Pessoais (Lucro Livre) */}
+      <div className="patrimonio-section">
+        <h3 className="patrimonio-section-title">👤 Sua Vida Pessoal (Seu Salário)</h3>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '16px' }}>
+          Este é o seu verdadeiro lucro. Destinado para pagar seu aluguel, mercado, lazer e emergência pessoal.
+        </p>
+        <div className="caixinhas-saldo-grid">
+          {CAIXINHAS.filter(c => c.id === 'contas' || c.id === 'emergencia' || c.id === 'livre').map(cx => {
+            const valor = Number(saldos[cx.id]) || 0;
+            const isOpen = extratoAberto === cx.id;
+
+            return (
+              <div key={cx.id} className="saldo-card" style={{ borderColor: cx.cor + '33', flexDirection: 'column', alignItems: 'stretch' }}>
+                <div className="saldo-card-accent" style={{ background: cx.cor }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                  <div className="saldo-card-left">
+                    <span className="saldo-card-emoji">{cx.emoji}</span>
+                    <div className="saldo-card-info">
+                      <span className="saldo-card-nome">{cx.nome}</span>
+                      <span className="saldo-card-valor" style={{ color: cx.cor }}>{formatarMoeda(valor)}</span>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button className="btn-sm" onClick={() => abrirModal(cx.id, 'SAIDA')} style={{ background: 'rgba(255,107,107,0.1)', color: '#ff6b6b', padding: '6px 10px' }}>- Retirar</button>
+                    <button className="btn-sm" onClick={() => setExtratoAberto(isOpen ? null : cx.id)} style={{ padding: '6px 10px' }}>📋 Extrato</button>
+                  </div>
+                </div>
+
+                {isOpen && (
+                  <div style={{ marginTop: '16px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '16px' }}>
+                    <h4 style={{ margin: '0 0 12px 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Histórico da Caixinha</h4>
+                    {getExtrato(cx.id).length === 0 ? (
+                      <p style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.3)' }}>Nenhuma transação recente.</p>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '200px', overflowY: 'auto' }}>
+                        {getExtrato(cx.id).map(t => (
+                          <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', background: 'rgba(255,255,255,0.02)', padding: '8px', borderRadius: '6px', fontSize: '0.8rem' }}>
+                            <div>
+                              <span style={{ color: t.tipo === 'ENTRADA' ? cx.cor : '#ff6b6b', fontWeight: 'bold', marginRight: '6px' }}>{t.tipo === 'ENTRADA' ? '+' : '-'}</span>
+                              <span>{t.motivo}</span>
+                              <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>{formatarData(t.data)}</div>
+                            </div>
+                            <span style={{ fontWeight: 'bold', color: t.tipo === 'ENTRADA' ? cx.cor : '#ff6b6b' }}>{formatarMoeda(t.valor)}</span>
                           </div>
                         ))}
                       </div>

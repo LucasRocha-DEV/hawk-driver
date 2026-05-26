@@ -903,35 +903,44 @@ export default function UberTab() {
           </form>
         )}
 
-        <div className="caixinhas-grid">
-          {/* Emergência */}
-          <div className={`caixinha-card ${registroDoDia?.caixinhasEnviadas ? 'caixinha-enviada' : ''}`}>
-            <span className="caixinha-label">🚨 Emergência ({pctEmergencia}% Bruto)</span>
-            <span className="caixinha-valor">{formatarMoeda(brutoNum * (pctEmergencia / 100))}</span>
-          </div>
+        {/* Blocos de Separação de Negócio e Salário */}
+        <div style={{ marginTop: '24px', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)' }}>
+          <h3 style={{ fontSize: '1.05rem', margin: '0 0 16px 0', color: 'var(--text-primary)' }}>🏢 Para a Empresa (Custos Fixos e Variáveis)</h3>
+          <div className="caixinhas-grid">
+            {/* Manutenção */}
+            <div className={`caixinha-card ${registroDoDia?.caixinhasEnviadas ? 'caixinha-enviada' : ''}`}>
+              <span className="caixinha-label">🔧 Manutenção ({pctManutencao}% Bruto)</span>
+              <span className="caixinha-valor">{formatarMoeda(brutoNum * (pctManutencao / 100))}</span>
+            </div>
 
-          {/* Manutenção */}
-          <div className={`caixinha-card ${registroDoDia?.caixinhasEnviadas ? 'caixinha-enviada' : ''}`}>
-            <span className="caixinha-label">🔧 Manutenção ({pctManutencao}% Bruto)</span>
-            <span className="caixinha-valor">{formatarMoeda(brutoNum * (pctManutencao / 100))}</span>
+            {/* Empresa */}
+            <div className={`caixinha-card ${registroDoDia?.caixinhasEnviadas ? 'caixinha-enviada' : ''}`}>
+              <span className="caixinha-label">🏢 Empresa ({pctEmpresa}% Líquido)</span>
+              <span className="caixinha-valor">{formatarMoeda(liquidoNum * (pctEmpresa / 100))}</span>
+            </div>
           </div>
+        </div>
 
-          {/* Empresa */}
-          <div className={`caixinha-card ${registroDoDia?.caixinhasEnviadas ? 'caixinha-enviada' : ''}`}>
-            <span className="caixinha-label">🏢 Empresa ({pctEmpresa}% Líquido)</span>
-            <span className="caixinha-valor">{formatarMoeda(liquidoNum * (pctEmpresa / 100))}</span>
-          </div>
+        <div style={{ marginTop: '24px', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)' }}>
+          <h3 style={{ fontSize: '1.05rem', margin: '0 0 16px 0', color: 'var(--text-primary)' }}>👤 Para o seu Salário (Pessoa Física)</h3>
+          <div className="caixinhas-grid">
+            {/* Emergência */}
+            <div className={`caixinha-card ${registroDoDia?.caixinhasEnviadas ? 'caixinha-enviada' : ''}`}>
+              <span className="caixinha-label">🚨 Emergência ({pctEmergencia}% Bruto)</span>
+              <span className="caixinha-valor">{formatarMoeda(brutoNum * (pctEmergencia / 100))}</span>
+            </div>
 
-          {/* Livre - Lazer */}
-          <div className={`caixinha-card ${registroDoDia?.caixinhasEnviadas ? 'caixinha-enviada' : ''}`}>
-            <span className="caixinha-label">💸 Livre - Lazer ({pctLivre}% Líquido)</span>
-            <span className="caixinha-valor">{formatarMoeda(liquidoNum * (pctLivre / 100))}</span>
-          </div>
+            {/* Livre - Lazer */}
+            <div className={`caixinha-card ${registroDoDia?.caixinhasEnviadas ? 'caixinha-enviada' : ''}`}>
+              <span className="caixinha-label">💸 Livre - Lazer ({pctLivre}% Líquido)</span>
+              <span className="caixinha-valor">{formatarMoeda(liquidoNum * (pctLivre / 100))}</span>
+            </div>
 
-          {/* Contas */}
-          <div className={`caixinha-card ${registroDoDia?.caixinhasEnviadas ? 'caixinha-enviada' : ''}`}>
-            <span className="caixinha-label">💳 Contas ({pctContas}% Líquido)</span>
-            <span className="caixinha-valor">{formatarMoeda(liquidoNum * (pctContas / 100))}</span>
+            {/* Contas */}
+            <div className={`caixinha-card ${registroDoDia?.caixinhasEnviadas ? 'caixinha-enviada' : ''}`}>
+              <span className="caixinha-label">💳 Contas ({pctContas}% Líquido)</span>
+              <span className="caixinha-valor">{formatarMoeda(liquidoNum * (pctContas / 100))}</span>
+            </div>
           </div>
         </div>
 

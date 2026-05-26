@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
 /* ========================================
    HAWK DRIVER — Complete Design System
    Dark Mode + Glassmorphism + Premium Feel
@@ -4015,7 +4016,7 @@ body {
    OVERHAUL CINEMATOGRÁFICO & GAMIFICADO (ULTIMATE UI)
    ======================================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
 
 body {
   font-family: 'Outfit', sans-serif !important;
@@ -4205,3 +4206,26 @@ html::after {
   z-index: 10;
 }
 
+
+
+/* ========================================
+   SELETORES GAMIFICADOS DE NATUREZA E ESPOSA
+   ======================================== */
+.nature-selector-container { background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: var(--radius-lg); padding: 16px; margin-bottom: 16px; grid-column: 1 / -1; transition: all 0.3s ease; }
+.nature-selector-container:hover { background: rgba(255, 255, 255, 0.03); border-color: rgba(255, 255, 255, 0.1); }
+.nature-buttons { display: flex; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+.nature-btn { flex: 1; min-width: 140px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 16px; border-radius: 12px; background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(255, 255, 255, 0.05); color: var(--text-secondary); font-family: var(--font-heading); font-weight: 600; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); user-select: none; }
+.nature-btn:hover { background: rgba(255, 255, 255, 0.05); transform: translateY(-2px); }
+.nature-btn.active-empresa { background: linear-gradient(135deg, rgba(108, 92, 231, 0.2), rgba(162, 155, 254, 0.2)); border-color: #a29bfe; color: #a29bfe; box-shadow: 0 0 15px rgba(108, 92, 231, 0.3); }
+.nature-btn.active-pessoal { background: linear-gradient(135deg, rgba(9, 132, 227, 0.2), rgba(116, 185, 255, 0.2)); border-color: #74b9ff; color: #74b9ff; box-shadow: 0 0 15px rgba(9, 132, 227, 0.3); }
+.nature-icon { font-size: 1.2rem; }
+
+.wife-toggle-container { display: flex; align-items: center; gap: 10px; margin-top: 16px; padding: 12px 16px; border-radius: 10px; background: rgba(253, 121, 168, 0.05); border: 1px dashed rgba(253, 121, 168, 0.3); cursor: pointer; transition: all 0.3s ease; }
+.wife-toggle-container:hover { background: rgba(253, 121, 168, 0.1); }
+.wife-toggle-container.active-wife { background: rgba(253, 121, 168, 0.15); border: 1px solid #fd79a8; box-shadow: 0 0 12px rgba(253, 121, 168, 0.2); }
+.wife-toggle-checkbox { font-size: 1.2rem; }
+.wife-toggle-text { color: #fd79a8; font-weight: 600; font-size: 0.95rem; }
+.wife-hint { font-size: 0.8rem; font-weight: 400; opacity: 0.8; margin-left: 6px; }
+
+/* Correção para botões do Modal ficarem alinhados */
+.section-card .form-group select { appearance: auto !important; }

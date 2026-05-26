@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuth } from './contexts/AuthContext';
 import UberTab from './components/UberTab';
 import AnaliseTab from './components/AnaliseTab';
+import ContasTab from './components/ContasTab';
 import DespesasFixasTab from './components/DespesasFixasTab';
 import GastosVariaveisTab from './components/GastosVariaveisTab';
 import ObservacoesTab from './components/ObservacoesTab';
@@ -10,6 +11,7 @@ import PatrimonioTab from './components/PatrimonioTab';
 const TABS = [
   { id: 'uber', label: 'Uber / Ganhos', icon: '🚗' },
   { id: 'analise', label: 'Análise Uber', icon: '📊' },
+  { id: 'contas', label: 'Termômetro', icon: '🧾' },
   { id: 'despesas', label: 'Despesas Fixas', icon: '📋' },
   { id: 'gastos', label: 'Gastos Variáveis', icon: '💸' },
   { id: 'patrimonio', label: 'Patrimônio', icon: '💰' },
@@ -148,6 +150,7 @@ export default function App() {
     switch (abaAtiva) {
       case 'uber': return <UberTab />;
       case 'analise': return <AnaliseTab />;
+      case 'contas': return <ContasTab />;
       case 'despesas': return <DespesasFixasTab />;
       case 'gastos': return <GastosVariaveisTab />;
       case 'patrimonio': return <PatrimonioTab />;
