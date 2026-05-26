@@ -42,10 +42,10 @@ function despesaAtivaNoPeriodo(despesa, mes, ano) {
 export default function IAInsightsTab() {
   const { usuario } = useAuth();
   const hoje = new Date();
-  
+
   const [mesAtual, setMesAtual] = useState(hoje.getMonth());
   const [anoAtual, setAnoAtual] = useState(hoje.getFullYear());
-  
+
   const [apiKey, setApiKey] = useState('');
   const [showConfig, setShowConfig] = useState(false);
   const [savingKey, setSavingKey] = useState(false);
@@ -232,19 +232,19 @@ Use formatação Markdown, emojis, e seja motivador, mas realista.`;
           <h3 className="card-title">⚙️ Configuração da IA</h3>
           <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
             Para gerar análises, você precisa de uma API Key do Google Gemini (é gratuita!).
-            <br/>
+            <br />
             <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" style={{ color: '#6c5ce7', textDecoration: 'underline' }}>
               Pegue sua chave aqui
             </a>.
           </p>
           <form onSubmit={saveApiKey} style={{ display: 'flex', gap: '12px' }}>
-            <input 
-              type="password" 
-              className="form-input" 
-              placeholder="Cole sua API Key do Gemini..." 
-              value={apiKey} 
-              onChange={e => setApiKey(e.target.value)} 
-              required 
+            <input
+              type="password"
+              className="form-input"
+              placeholder="Cole sua API Key do Gemini..."
+              value={apiKey}
+              onChange={e => setApiKey(e.target.value)}
+              required
               style={{ flex: 1 }}
             />
             <button type="submit" className="btn-primary" disabled={savingKey}>
