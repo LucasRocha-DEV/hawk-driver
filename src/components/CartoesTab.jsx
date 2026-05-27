@@ -10,7 +10,9 @@ import {
   onSnapshot,
   query,
   where,
-  serverTimestamp
+  serverTimestamp,
+  writeBatch,
+  increment
 } from 'firebase/firestore';
 
 const BANDEIRAS = ['Mastercard', 'Visa', 'Elo', 'Amex', 'Hipercard', 'Outra'];
@@ -45,6 +47,14 @@ export default function CartoesTab() {
   // Fatura Data
   const [despesasVariaveis, setDespesasVariaveis] = useState([]);
   const [despesasFixas, setDespesasFixas] = useState([]);
+  const [saldos, setSaldos] = useState({});
+
+  // Pagamento da Fatura Inteira (Rateio)
+  const [pagamentoFaturaModal, setPagamentoFaturaModal] = useState(false);
+  const [fonteEmpresa, setFonteEmpresa] = useState('');
+  const [fontePessoal, setFontePessoal] = useState('');
+  const [fonteEsposa, setFonteEsposa] = useState('');
+  const [processandoPagamento, setProcessandoPagamento] = useState(false);
 
   // Modal CRUD Cartão
   const [modalCartao, setModalCartao] = useState(false);
@@ -93,7 +103,14 @@ export default function CartoesTab() {
       setCarregando(false);
     });
 
-    return () => unsub();
+    const unsubSaldos = onSnapshot(doc(db, 'usuarios', usuario.uid, 'saldos', 'atual'), (docSnap) => {
+      if (docSnap.exists()) setSaldos(docSnap.data());
+    });
+
+    return () => {
+      unsub();
+      unsubSaldos();
+    };
   }, [usuario]);
 
   // Carregar Fatura do Cartão Selecionado
@@ -132,6 +149,37 @@ export default function CartoesTab() {
     return cartoes.find(c => c.id === cartaoSelecionadoId);
   }, [cartoes, cartaoSelecionadoId]);
 
+  const pendenciasFatura = useMemo(() => {
+    const pendentesVariaveis = despesasVariaveis.filter(d => !d.pago);
+    const pendentesFixas = despesasFixas.filter(d => !(d.pagoPorMes && d.pagoPorMes[faturaRefAtual]));
+    
+    let totalEmpresa = 0;
+    let totalPessoal = 0;
+    let totalEsposa = 0;
+    
+    [...pendentesVariaveis, ...pendentesFixas].forEach(d => {
+      const val = Number(d.valor);
+      if (d.natureza === 'EMPRESA') {
+        totalEmpresa += val;
+      } else if (d.isEsposa) {
+        totalEsposa += val;
+      } else {
+        totalPessoal += val;
+      }
+    });
+
+    const total = totalEmpresa + totalPessoal + totalEsposa;
+    
+    return {
+      variaveis: pendentesVariaveis,
+      fixas: pendentesFixas,
+      total,
+      totalEmpresa,
+      totalPessoal,
+      totalEsposa
+    };
+  }, [despesasVariaveis, despesasFixas, faturaRefAtual]);
+
   const totaisFatura = useMemo(() => {
     const totalFixas = despesasFixas.reduce((acc, curr) => acc + Number(curr.valor), 0);
     const totalVariaveis = despesasVariaveis.reduce((acc, curr) => acc + Number(curr.valor), 0);
@@ -142,6 +190,89 @@ export default function CartoesTab() {
 
     return { totalFixas, totalVariaveis, totalFatura, limite, limiteDisponivel, percentualUso };
   }, [despesasFixas, despesasVariaveis, cartaoSelecionado]);
+
+  const pagarFaturaTotal = async (e) => {
+    e.preventDefault();
+    if (!usuario || !cartaoSelecionado) return;
+    
+    // Validar se as fontes necessárias foram selecionadas
+    if (pendenciasFatura.totalEmpresa > 0 && !fonteEmpresa) return;
+    if (pendenciasFatura.totalPessoal > 0 && !fontePessoal) return;
+    if (pendenciasFatura.totalEsposa > 0 && !fonteEsposa) return;
+
+    setProcessandoPagamento(true);
+    try {
+      const batch = writeBatch(db);
+
+      pendenciasFatura.variaveis.forEach(d => {
+        const docRef = doc(db, 'usuarios', usuario.uid, 'despesas_variaveis', d.id);
+        batch.update(docRef, { pago: true });
+      });
+
+      pendenciasFatura.fixas.forEach(d => {
+        const docRef = doc(db, 'usuarios', usuario.uid, 'despesas_fixas', d.id);
+        const novoPagoPorMes = { ...(d.pagoPorMes || {}) };
+        novoPagoPorMes[faturaRefAtual] = true;
+        batch.update(docRef, { pagoPorMes: novoPagoPorMes });
+      });
+
+      const descontosPorCaixinha = {};
+      const registrarDesconto = (fonte, valor) => {
+        if (fonte && fonte !== 'NENHUMA' && valor > 0) {
+          descontosPorCaixinha[fonte] = (descontosPorCaixinha[fonte] || 0) + valor;
+        }
+      };
+
+      registrarDesconto(fonteEmpresa, pendenciasFatura.totalEmpresa);
+      registrarDesconto(fontePessoal, pendenciasFatura.totalPessoal);
+      registrarDesconto(fonteEsposa, pendenciasFatura.totalEsposa);
+
+      if (Object.keys(descontosPorCaixinha).length > 0) {
+        const saldoRef = doc(db, 'usuarios', usuario.uid, 'saldos', 'atual');
+        const descontosObj = {};
+        Object.entries(descontosPorCaixinha).forEach(([caixinha, valor]) => {
+          descontosObj[caixinha] = increment(-valor);
+        });
+        batch.set(saldoRef, { ...descontosObj, atualizadoEm: serverTimestamp() }, { merge: true });
+
+        Object.entries(descontosPorCaixinha).forEach(([caixinha, valor]) => {
+          let nomeCaixinha = caixinha.charAt(0).toUpperCase() + caixinha.slice(1);
+          if (caixinha === 'saldoConta') nomeCaixinha = 'Conta Principal';
+          
+          const transacaoRef = doc(collection(db, 'usuarios', usuario.uid, 'transacoes_patrimonio'));
+          batch.set(transacaoRef, {
+            caixinhaId: caixinha,
+            caixinhaNome: nomeCaixinha,
+            tipo: 'SAIDA',
+            valor: valor,
+            motivo: `Pgto Fatura ${cartaoSelecionado.nome} (${faturaRefAtual})`,
+            data: new Date().toISOString().split('T')[0],
+            criadoEm: serverTimestamp()
+          });
+        });
+      }
+
+      // Selo de memória de Fatura Paga
+      const faturasPagasRef = doc(db, 'usuarios', usuario.uid, 'faturas_pagas', `${cartaoSelecionado.id}_${faturaRefAtual}`);
+      batch.set(faturasPagasRef, {
+        pago: true,
+        faturaRef: faturaRefAtual,
+        cartaoId: cartaoSelecionado.id,
+        atualizadoEm: serverTimestamp()
+      }, { merge: true });
+
+      await batch.commit();
+      setPagamentoFaturaModal(false);
+      alert('🎉 Fatura paga e rateada com sucesso! Todas as despesas vinculadas ganharam o ✔️ de pago.');
+      setFonteEmpresa('');
+      setFontePessoal('');
+      setFonteEsposa('');
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao pagar fatura.');
+    }
+    setProcessandoPagamento(false);
+  };
 
   const limparFormulario = () => {
     setNome('');
@@ -279,6 +410,9 @@ export default function CartoesTab() {
               <button className="month-nav-btn" onClick={mesSeguinte}>›</button>
             </div>
             <div>
+              {pendenciasFatura.total > 0 && (
+                <button className="btn-primary" onClick={() => setPagamentoFaturaModal(true)} style={{ marginRight: '16px' }}>💳 Pagar Fatura</button>
+              )}
               <button className="btn-sm" onClick={() => iniciarEdicao(cartaoSelecionado)} style={{ marginRight: '8px' }}>✎ Editar</button>
               <button className="btn-sm" onClick={() => excluirCartao(cartaoSelecionado.id)} style={{ background: 'rgba(255,107,107,0.1)', color: '#ff6b6b' }}>✕ Excluir</button>
             </div>
@@ -321,15 +455,25 @@ export default function CartoesTab() {
                 <div className="empty-state">Nenhuma assinatura vinculada.</div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {despesasFixas.map(fixa => (
-                    <div key={fixa.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
-                      <div>
-                        <div style={{ fontWeight: 'bold' }}>{fixa.descricao}</div>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{fixa.categoria}</div>
+                  {despesasFixas.map(fixa => {
+                    const pago = fixa.pagoPorMes && fixa.pagoPorMes[faturaRefAtual];
+                    return (
+                      <div key={fixa.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+                        <div>
+                          <div style={{ fontWeight: 'bold', textDecoration: pago ? 'line-through' : 'none' }}>
+                            {fixa.descricao}
+                          </div>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                            {fixa.categoria}
+                            {pago && <span style={{ marginLeft: '8px', color: '#00d4aa' }}>✅ Pago</span>}
+                          </div>
+                        </div>
+                        <div style={{ fontWeight: 'bold', color: pago ? 'var(--text-secondary)' : '#ff6b6b' }}>
+                          {formatarMoeda(fixa.valor)}
+                        </div>
                       </div>
-                      <div style={{ fontWeight: 'bold', color: '#ff6b6b' }}>{formatarMoeda(fixa.valor)}</div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
                     <span>Total Assinaturas</span>
                     <span>{formatarMoeda(totaisFatura.totalFixas)}</span>
@@ -348,15 +492,25 @@ export default function CartoesTab() {
                 <div className="empty-state">Nenhuma compra nesta fatura.</div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {despesasVariaveis.map(compra => (
-                    <div key={compra.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
-                      <div>
-                        <div style={{ fontWeight: 'bold' }}>{compra.descricao} {compra.parcelado && `(${compra.parcelaAtual}/${compra.totalParcelas})`}</div>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{formatarData(compra.data)} • {compra.categoria}</div>
+                  {despesasVariaveis.map(compra => {
+                    const pago = compra.pago;
+                    return (
+                      <div key={compra.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+                        <div>
+                          <div style={{ fontWeight: 'bold', textDecoration: pago ? 'line-through' : 'none' }}>
+                            {compra.descricao} {compra.parcelado && `(${compra.parcelaAtual}/${compra.totalParcelas})`}
+                          </div>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                            {formatarData(compra.data)} • {compra.categoria}
+                            {pago && <span style={{ marginLeft: '8px', color: '#00d4aa' }}>✅ Pago</span>}
+                          </div>
+                        </div>
+                        <div style={{ fontWeight: 'bold', color: pago ? 'var(--text-secondary)' : '#ff6b6b' }}>
+                          {formatarMoeda(compra.valor)}
+                        </div>
                       </div>
-                      <div style={{ fontWeight: 'bold', color: '#ff6b6b' }}>{formatarMoeda(compra.valor)}</div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
                     <span>Total Compras</span>
                     <span>{formatarMoeda(totaisFatura.totalVariaveis)}</span>
@@ -423,6 +577,81 @@ export default function CartoesTab() {
                   {salvando ? 'Salvando...' : 'Salvar Cartão'}
                 </button>
                 <button type="button" className="btn-secondary" onClick={() => setModalCartao(false)}>Cancelar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Pagamento Fatura */}
+      {pagamentoFaturaModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
+          <div className="section-card" style={{ width: '90%', maxWidth: '450px', background: '#16162a', padding: '32px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.3rem', color: '#fff' }}>💳 Pagar Fatura</h3>
+            
+            <div style={{ background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '12px', marginBottom: '24px' }}>
+              <div style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>Fatura {cartaoSelecionado?.nome} ({MESES[mesAtual]} {anoAtual})</div>
+              <div style={{ fontSize: '1.4rem', color: '#ff6b6b', fontWeight: 'bold', marginTop: '8px' }}>{formatarMoeda(pendenciasFatura.total)} pendentes</div>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '8px' }}>
+                Será dado baixa em {pendenciasFatura.variaveis.length} compras variáveis e {pendenciasFatura.fixas.length} assinaturas.
+              </p>
+            </div>
+
+            <form onSubmit={pagarFaturaTotal}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {pendenciasFatura.totalEmpresa > 0 && (
+                  <div className="form-group" style={{ margin: 0, padding: '12px', background: 'rgba(9, 132, 227, 0.1)', borderLeft: '4px solid #0984e3', borderRadius: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <span style={{ fontWeight: 'bold', color: '#0984e3' }}>🏢 Parte da Empresa</span>
+                      <span style={{ fontWeight: 'bold' }}>{formatarMoeda(pendenciasFatura.totalEmpresa)}</span>
+                    </div>
+                    <select className="form-input" required value={fonteEmpresa} onChange={e => setFonteEmpresa(e.target.value)} style={{ background: '#0a0a16', fontSize: '0.9rem' }}>
+                      <option value="" disabled>Escolha a caixinha...</option>
+                      <option value="empresa">🏢 Empresa (Saldo: {formatarMoeda(saldos.empresa)})</option>
+                      <option value="manutencao">🔧 Manutenção (Saldo: {formatarMoeda(saldos.manutencao)})</option>
+                      <option value="saldoConta">🏦 Conta Principal (Saldo: {formatarMoeda(saldos.saldoConta)})</option>
+                      <option value="NENHUMA">❌ Já pago / Não descontar</option>
+                    </select>
+                  </div>
+                )}
+
+                {pendenciasFatura.totalPessoal > 0 && (
+                  <div className="form-group" style={{ margin: 0, padding: '12px', background: 'rgba(255, 107, 107, 0.1)', borderLeft: '4px solid #ff6b6b', borderRadius: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <span style={{ fontWeight: 'bold', color: '#ff6b6b' }}>👤 Parte Pessoal</span>
+                      <span style={{ fontWeight: 'bold' }}>{formatarMoeda(pendenciasFatura.totalPessoal)}</span>
+                    </div>
+                    <select className="form-input" required value={fontePessoal} onChange={e => setFontePessoal(e.target.value)} style={{ background: '#0a0a16', fontSize: '0.9rem' }}>
+                      <option value="" disabled>Escolha a caixinha...</option>
+                      <option value="contas">💳 Contas (Saldo: {formatarMoeda(saldos.contas)})</option>
+                      <option value="livre">💸 Livre - Lazer (Saldo: {formatarMoeda(saldos.livre)})</option>
+                      <option value="emergencia">🚨 Reserva (Saldo: {formatarMoeda(saldos.emergencia)})</option>
+                      <option value="saldoConta">🏦 Conta Principal (Saldo: {formatarMoeda(saldos.saldoConta)})</option>
+                      <option value="NENHUMA">❌ Já pago / Não descontar</option>
+                    </select>
+                  </div>
+                )}
+
+                {pendenciasFatura.totalEsposa > 0 && (
+                  <div className="form-group" style={{ margin: 0, padding: '12px', background: 'rgba(253, 121, 168, 0.1)', borderLeft: '4px solid #fd79a8', borderRadius: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <span style={{ fontWeight: 'bold', color: '#fd79a8' }}>👩‍❤️‍👨 Parte da Esposa</span>
+                      <span style={{ fontWeight: 'bold' }}>{formatarMoeda(pendenciasFatura.totalEsposa)}</span>
+                    </div>
+                    <select className="form-input" required value={fonteEsposa} onChange={e => setFonteEsposa(e.target.value)} style={{ background: '#0a0a16', fontSize: '0.9rem' }}>
+                      <option value="" disabled>Escolha a caixinha...</option>
+                      <option value="saldoConta">🏦 Conta Principal (Saldo: {formatarMoeda(saldos.saldoConta)})</option>
+                      <option value="NENHUMA">❌ Já pago / Ela pagou por fora</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+                <button type="submit" className="btn-primary" style={{ flex: 1, padding: '14px', fontSize: '1rem' }} disabled={processandoPagamento || (pendenciasFatura.totalEmpresa > 0 && !fonteEmpresa) || (pendenciasFatura.totalPessoal > 0 && !fontePessoal) || (pendenciasFatura.totalEsposa > 0 && !fonteEsposa)}>
+                  {processandoPagamento ? 'Processando...' : 'Confirmar Pagamento'}
+                </button>
+                <button type="button" className="btn-secondary" onClick={() => setPagamentoFaturaModal(false)} style={{ padding: '14px 24px' }}>Cancelar</button>
               </div>
             </form>
           </div>

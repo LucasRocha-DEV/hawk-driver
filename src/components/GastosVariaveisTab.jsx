@@ -26,37 +26,22 @@ import {
   Cell
 } from 'recharts';
 
-const CATEGORIAS = [
-  'Alimentação',
-  'Mercado',
-  'Transporte',
-  'Saúde / Farmácia',
-  'Vestuário',
-  'Lazer',
-  'Manutenção Veículo',
-  'Combustível (eventual)',
-  'Restaurante',
-  'Compras Online',
-  'Presente',
-  'Cartão de Crédito',
-  'Outros'
+const CATEGORIAS_DEFAULT = [
+  { id: 'Alimentação', label: '🍔 Alimentação', cor: '#ff6b6b' },
+  { id: 'Mercado', label: '🛒 Mercado', cor: '#ffd93d' },
+  { id: 'Transporte', label: '🚕 Transporte', cor: '#6c5ce7' },
+  { id: 'Saúde / Farmácia', label: '💊 Saúde/Farmácia', cor: '#00d4aa' },
+  { id: 'Vestuário', label: '👕 Vestuário', cor: '#fd79a8' },
+  { id: 'Lazer', label: '🎉 Lazer', cor: '#e17055' },
+  { id: 'Manutenção Veículo', label: '🔧 Manutenção Veíc.', cor: '#0984e3' },
+  { id: 'Combustível (eventual)', label: '⛽ Combustível', cor: '#00b894' },
+  { id: 'Restaurante', label: '🍽️ Restaurante', cor: '#a29bfe' },
+  { id: 'Compras Online', label: '📦 Compras Online', cor: '#fdcb6e' },
+  { id: 'Presente', label: '🎁 Presente', cor: '#636e72' },
+  { id: 'Cartão de Crédito', label: '💳 Cartão de Créd.', cor: '#e84393' },
+  { id: 'Outros', label: '📦 Outros', cor: '#b2bec3' },
+  { id: 'Eletrônicos / Bens', label: '📺 Eletrônicos/Bens', cor: '#00cec9' }
 ];
-
-const CORES_CATEGORIAS = {
-  'Alimentação': '#ff6b6b',
-  'Mercado': '#ffd93d',
-  'Transporte': '#6c5ce7',
-  'Saúde / Farmácia': '#00d4aa',
-  'Vestuário': '#fd79a8',
-  'Lazer': '#e17055',
-  'Manutenção Veículo': '#0984e3',
-  'Combustível (eventual)': '#00b894',
-  'Restaurante': '#a29bfe',
-  'Compras Online': '#fdcb6e',
-  'Presente': '#636e72',
-  'Cartão de Crédito': '#e84393',
-  'Outros': '#b2bec3'
-};
 
 const METODOS_PAGAMENTO = [
   'Cartão de Crédito',
@@ -102,6 +87,8 @@ export default function GastosVariaveisTab() {
 
   const [gastos, setGastos] = useState([]);
   const [saldos, setSaldos] = useState({});
+  const [cartoes, setCartoes] = useState([]);
+  const [faturasPagas, setFaturasPagas] = useState([]);
   const [carregando, setCarregando] = useState(true);
 
   // Form state
@@ -113,14 +100,12 @@ export default function GastosVariaveisTab() {
   const [metodoPagamento, setMetodoPagamento] = useState('');
   
   // Cartão Fields
-  const [cartoes, setCartoes] = useState([]);
   const [cartaoId, setCartaoId] = useState('');
   const [isCartaoTerceiro, setIsCartaoTerceiro] = useState(false);
   const [nomeCartaoTerceiro, setNomeCartaoTerceiro] = useState('');
 
   const [parcelado, setParcelado] = useState(false);
   const [totalParcelas, setTotalParcelas] = useState('');
-  const [valorTotal, setValorTotal] = useState('');
   const [natureza, setNatureza] = useState('PESSOAL'); // EMPRESA ou PESSOAL
   const [isEsposa, setIsEsposa] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -133,6 +118,26 @@ export default function GastosVariaveisTab() {
   const [pagamentoModal, setPagamentoModal] = useState(null);
   const [caixinhaFonte, setCaixinhaFonte] = useState('');
   const [processandoPagamento, setProcessandoPagamento] = useState(false);
+
+  // Categorias Dinâmicas
+  const [categorias, setCategorias] = useState(CATEGORIAS_DEFAULT);
+  const [modalCategorias, setModalCategorias] = useState(false);
+  const [novaCategoriaNome, setNovaCategoriaNome] = useState('');
+  const [novaCategoriaCor, setNovaCategoriaCor] = useState('#a29bfe');
+
+  // Mapa de cores dinâmico
+  const mapaCores = useMemo(() => {
+    const mapa = {};
+    categorias.forEach(c => { mapa[c.id] = c.cor; });
+    return mapa;
+  }, [categorias]);
+
+  // Labels dinâmicos
+  const mapaLabels = useMemo(() => {
+    const mapa = {};
+    categorias.forEach(c => { mapa[c.id] = c.label; });
+    return mapa;
+  }, [categorias]);
 
   const mesAnterior = () => {
     if (mesAtual === 0) {
@@ -185,26 +190,30 @@ export default function GastosVariaveisTab() {
       setCartoes(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
+    const unsubFaturasPagas = onSnapshot(collection(db, 'usuarios', usuario.uid, 'faturas_pagas'), (snap) => {
+      setFaturasPagas(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
+    const unsubCategorias = onSnapshot(doc(db, 'usuarios', usuario.uid, 'configuracoes', 'categorias_variaveis'), (snap) => {
+      if (snap.exists() && snap.data().lista) {
+        setCategorias(snap.data().lista);
+      } else {
+        setDoc(doc(db, 'usuarios', usuario.uid, 'configuracoes', 'categorias_variaveis'), { lista: CATEGORIAS_DEFAULT });
+      }
+    });
+
     return () => {
       unsubscribeGastos();
       unsubSaldos();
       unsubCartoes();
+      unsubFaturasPagas();
+      unsubCategorias();
     };
   }, [usuario, mesAtual, anoAtual]);
 
   useEffect(() => {
     setFiltroCategoria('Todas');
   }, [mesAtual, anoAtual]);
-
-  useEffect(() => {
-    if (parcelado && valorTotal && totalParcelas) {
-      const vTotal = parseFloat(valorTotal);
-      const nParcelas = parseInt(totalParcelas, 10);
-      if (vTotal > 0 && nParcelas > 0) {
-        setValor((vTotal / nParcelas).toFixed(2));
-      }
-    }
-  }, [parcelado, valorTotal, totalParcelas]);
 
   const gastosFiltrados = useMemo(() => {
     if (filtroCategoria === 'Todas') return gastos;
@@ -213,8 +222,8 @@ export default function GastosVariaveisTab() {
 
   const categoriasPresentes = useMemo(() => {
     const set = new Set(gastos.map(g => g.categoria));
-    return CATEGORIAS.filter(c => set.has(c));
-  }, [gastos]);
+    return categorias.filter(c => set.has(c.id)).map(c => c.label);
+  }, [gastos, categorias]);
 
   const resumo = useMemo(() => {
     let total = 0;
@@ -241,11 +250,12 @@ export default function GastosVariaveisTab() {
     return Object.entries(porCategoria)
       .map(([categoria, total]) => ({
         categoria,
+        label: mapaLabels[categoria] || categoria,
         total,
-        cor: CORES_CATEGORIAS[categoria] || '#b2bec3'
+        cor: mapaCores[categoria] || '#b2bec3'
       }))
       .sort((a, b) => b.total - a.total);
-  }, [gastos]);
+  }, [gastos, mapaCores, mapaLabels]);
 
   const top5 = useMemo(() => {
     return [...gastos]
@@ -265,7 +275,6 @@ export default function GastosVariaveisTab() {
     setNomeCartaoTerceiro('');
     setParcelado(false);
     setTotalParcelas('');
-    setValorTotal('');
     setNatureza('PESSOAL');
     setIsEsposa(false);
     setEditandoId(null);
@@ -283,7 +292,6 @@ export default function GastosVariaveisTab() {
     setNomeCartaoTerceiro(gasto.nomeCartaoTerceiro || '');
     setParcelado(!!gasto.parcelado);
     setTotalParcelas(gasto.totalParcelas ? String(gasto.totalParcelas) : '');
-    setValorTotal(gasto.valorTotal ? String(gasto.valorTotal) : '');
     setNatureza(gasto.natureza || 'PESSOAL');
     setIsEsposa(gasto.isEsposa || false);
     setEditandoId(gasto.id);
@@ -341,10 +349,10 @@ export default function GastosVariaveisTab() {
         };
         const docRef = doc(db, 'usuarios', usuario.uid, 'despesas_variaveis', editandoId);
         await updateDoc(docRef, dadosGasto);
-      } else if (parcelado && totalParcelas && valorTotal) {
+      } else if (parcelado && totalParcelas && valor) {
         const nParcelas = parseInt(totalParcelas, 10);
-        const vTotal = parseFloat(valorTotal);
-        const vParcela = parseFloat((vTotal / nParcelas).toFixed(2));
+        const vParcela = parseFloat(valor);
+        const vTotal = vParcela * nParcelas;
         const grupoId = gerarGrupoId();
         const colRef = collection(db, 'usuarios', usuario.uid, 'despesas_variaveis');
 
@@ -370,6 +378,12 @@ export default function GastosVariaveisTab() {
 
           const diaOriginal = data.split('-')[2];
           const parcelaData = `${parcelaAno}-${String(parcelaMes + 1).padStart(2, '0')}-${diaOriginal}`;
+          
+          let ehPago = false;
+          if (cartaoId && currFaturaRef) {
+            const seloId = `${cartaoId}_${currFaturaRef}`;
+            ehPago = faturasPagas.some(f => f.id === seloId && f.pago);
+          }
 
           await addDoc(colRef, {
             descricao: descricao.trim(),
@@ -391,10 +405,16 @@ export default function GastosVariaveisTab() {
             grupoParcelamento: grupoId,
             natureza,
             isEsposa,
-            pago: false
+            pago: ehPago
           });
         }
       } else {
+        let ehPago = false;
+        if (cartaoId && baseFaturaRef) {
+          const seloId = `${cartaoId}_${baseFaturaRef}`;
+          ehPago = faturasPagas.some(f => f.id === seloId && f.pago);
+        }
+
         const dadosGasto = {
           descricao: descricao.trim(),
           categoria,
@@ -411,7 +431,7 @@ export default function GastosVariaveisTab() {
           parcelado: false,
           natureza,
           isEsposa,
-          pago: false
+          pago: ehPago
         };
         const colRef = collection(db, 'usuarios', usuario.uid, 'despesas_variaveis');
         await addDoc(colRef, dadosGasto);
@@ -525,6 +545,37 @@ export default function GastosVariaveisTab() {
     setProcessandoPagamento(false);
   };
 
+  // ── Gerenciamento de Categorias ──
+  const adicionarCategoria = async (e) => {
+    e.preventDefault();
+    if (!usuario || !novaCategoriaNome.trim()) return;
+    try {
+      const novaCat = {
+        id: novaCategoriaNome.trim(),
+        label: novaCategoriaNome.trim(),
+        cor: novaCategoriaCor
+      };
+      const novaLista = [...categorias, novaCat];
+      await setDoc(doc(db, 'usuarios', usuario.uid, 'configuracoes', 'categorias_variaveis'), { lista: novaLista }, { merge: true });
+      setNovaCategoriaNome('');
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao adicionar categoria.');
+    }
+  };
+
+  const removerCategoria = async (catId) => {
+    if (!usuario) return;
+    if (window.confirm(`Tem certeza que deseja remover a categoria "${catId}"? (Suas despesas antigas continuarão funcionando)`)) {
+      try {
+        const novaLista = categorias.filter(c => c.id !== catId);
+        await setDoc(doc(db, 'usuarios', usuario.uid, 'configuracoes', 'categorias_variaveis'), { lista: novaLista }, { merge: true });
+      } catch (err) {
+        console.error(err);
+        alert('Erro ao remover categoria.');
+      }
+    }
+  };
 
   const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
@@ -545,6 +596,13 @@ export default function GastosVariaveisTab() {
         <span className="month-nav-label">{MESES[mesAtual]} {anoAtual}</span>
         <button className="month-nav-btn" onClick={mesSeguinte}>›</button>
       </div>
+      
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+        <button className="btn-sm" onClick={() => setModalCategorias(true)} style={{ background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' }}>
+          ⚙️ Gerenciar Categorias
+        </button>
+      </div>
+
       {/* CARD PRINCIPAL - TOTAL */}
       <div style={{ marginBottom: '16px' }}>
         <div className="metric-card" style={{ padding: '24px', justifyContent: 'center', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
@@ -595,8 +653,8 @@ export default function GastosVariaveisTab() {
             <label className="form-label">Categoria</label>
             <select className="form-input" value={categoria} onChange={e => setCategoria(e.target.value)} required>
               <option value="">Selecione...</option>
-              {CATEGORIAS.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
+              {categorias.map(cat => (
+                <option key={cat.id} value={cat.id}>{cat.label}</option>
               ))}
             </select>
           </div>
@@ -676,12 +734,17 @@ export default function GastosVariaveisTab() {
               <label className="toggle-label">
                 <span className="toggle-text">
                   💳 Compra Parcelada?
-                  <span className="toggle-hint">{parcelado ? 'Criar parcelas' : 'À vista'}</span>
+                  <span className="toggle-hint">{parcelado ? 'Sim, criar parcelas' : 'Não, compra à vista'}</span>
                 </span>
                 <div className={`toggle-switch ${parcelado ? 'toggle-on' : ''}`} onClick={() => setParcelado(!parcelado)}>
                   <div className="toggle-knob" />
                 </div>
               </label>
+              {parcelado && (
+                <div style={{ background: 'rgba(255,107,107,0.1)', borderLeft: '4px solid #ff6b6b', padding: '12px', marginTop: '12px', borderRadius: '4px', fontSize: '0.85rem', color: '#ff6b6b' }}>
+                  <strong>Dica para compras antigas:</strong> Se você parcelou algo meses atrás (ex: comprou a TV em Janeiro) e está registrando agora, certifique-se de colocar a <strong>Data</strong> original da compra (ex: 15/01/2026). Assim, o aplicativo vai jogar as parcelas 1, 2, 3 nos meses passados corretamente nas faturas certas!
+                </div>
+              )}
             </div>
           )}
 
@@ -696,20 +759,18 @@ export default function GastosVariaveisTab() {
             </div>
           )}
 
-          {parcelado && !editandoId && (
+          {(parcelado && !editandoId) ? (
             <>
               <div className="form-group">
-                <label className="form-label">💰 Valor Total (R$)</label>
-                <input type="number" className="form-input" step="0.01" min="0.01" value={valorTotal} onChange={e => setValorTotal(e.target.value)} required={parcelado} />
+                <label className="form-label">💰 Valor de CADA Parcela (R$)</label>
+                <input type="number" className="form-input" step="0.01" min="0.01" placeholder="Ex: 50,00" value={valor} onChange={e => setValor(e.target.value)} required={parcelado} />
               </div>
               <div className="form-group">
-                <label className="form-label">🔢 Parcelas</label>
-                <input type="number" className="form-input" min="2" max="48" value={totalParcelas} onChange={e => setTotalParcelas(e.target.value)} required={parcelado} />
+                <label className="form-label">🔢 Quantidade de Parcelas</label>
+                <input type="number" className="form-input" min="2" max="48" placeholder="Ex: 10" value={totalParcelas} onChange={e => setTotalParcelas(e.target.value)} required={parcelado} />
               </div>
             </>
-          )}
-
-          {!parcelado && (
+          ) : (
             <div className="form-group">
               <label className="form-label">Valor (R$)</label>
               <input type="number" className="form-input" step="0.01" min="0.01" value={valor} onChange={e => setValor(e.target.value)} required />
@@ -739,7 +800,7 @@ export default function GastosVariaveisTab() {
             <ResponsiveContainer>
               <BarChart data={dadosGrafico} margin={{ top: 10, right: 20, left: 10, bottom: 60 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                <XAxis dataKey="categoria" tick={{ fill: '#a0a0b8', fontSize: 11 }} angle={-45} textAnchor="end" interval={0} height={80} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} tickLine={false} />
+                <XAxis dataKey="label" tick={{ fill: '#a0a0b8', fontSize: 11 }} angle={-45} textAnchor="end" interval={0} height={80} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} tickLine={false} />
                 <YAxis tick={{ fill: '#a0a0b8', fontSize: 11 }} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} tickLine={false} tickFormatter={(v) => `R$ ${v}`} />
                 <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
                 <Bar dataKey="total" radius={[6, 6, 0, 0]} maxBarSize={50}>
@@ -775,7 +836,7 @@ export default function GastosVariaveisTab() {
                           {gasto.parcelado && <span className="badge-parcela">{gasto.parcelaAtual}/{gasto.totalParcelas}</span>}
                         </span>
                         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                          <span className="expense-categoria-badge" style={{ background: CORES_CATEGORIAS[gasto.categoria] || '#b2bec3' }}>{gasto.categoria}</span>
+                          <span className="expense-categoria-badge" style={{ background: mapaCores[gasto.categoria] || '#b2bec3' }}>{mapaLabels[gasto.categoria] || gasto.categoria}</span>
                           <span className="expense-categoria-badge" style={{ backgroundColor: tagNaturezaCor, color: '#111' }}>
                             {tagNaturezaIcone} {gasto.natureza === 'EMPRESA' ? 'Empresa' : (gasto.isEsposa ? 'Esposa' : 'Pessoal')}
                           </span>
@@ -810,15 +871,17 @@ export default function GastosVariaveisTab() {
       </div>
 
       {confirmarExclusao && (
-        <div className="modal-overlay" onClick={() => setConfirmarExclusao(null)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <h3 className="modal-title">🗑️ Excluir Parcela</h3>
-            <p className="modal-descricao"><strong>{confirmarExclusao.descricao}</strong> — Parcela {confirmarExclusao.parcelaAtual}/{confirmarExclusao.totalParcelas}</p>
-            <div className="modal-actions">
-              <button className="modal-btn modal-btn-danger" onClick={async () => { await excluirGastoUnico(confirmarExclusao.id); setConfirmarExclusao(null); }}>Excluir Apenas Esta Parcela</button>
-              <button className="modal-btn modal-btn-warning" onClick={async () => { await excluirParcelasRestantes(confirmarExclusao); setConfirmarExclusao(null); }}>Excluir Esta e as Restantes</button>
-              <button className="modal-btn modal-btn-danger-full" onClick={async () => { await excluirTodasParcelas(confirmarExclusao.grupoParcelamento); setConfirmarExclusao(null); }}>Excluir Todas as Parcelas</button>
-              <button className="modal-btn modal-btn-cancel" onClick={() => setConfirmarExclusao(null)}>Cancelar</button>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }} onClick={() => setConfirmarExclusao(null)}>
+          <div style={{ width: '90%', maxWidth: '450px', background: '#16162a', padding: '32px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.1)' }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.3rem', color: '#fff' }}>🗑️ Excluir Parcela</h3>
+            <p style={{ fontSize: '1rem', color: 'var(--text-secondary)', marginBottom: '24px' }}>
+              <strong>{confirmarExclusao.descricao}</strong> — Parcela {confirmarExclusao.parcelaAtual}/{confirmarExclusao.totalParcelas}
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <button className="btn-secondary" onClick={async () => { await excluirGastoUnico(confirmarExclusao.id); setConfirmarExclusao(null); }}>Excluir Apenas Esta Parcela</button>
+              <button className="btn-secondary" style={{ color: '#ffd93d', borderColor: 'rgba(255,217,61,0.3)' }} onClick={async () => { await excluirParcelasRestantes(confirmarExclusao); setConfirmarExclusao(null); }}>Excluir Esta e as Seguintes</button>
+              <button className="btn-secondary" style={{ color: '#ff6b6b', borderColor: 'rgba(255,107,107,0.3)' }} onClick={async () => { await excluirTodasParcelas(confirmarExclusao.grupoParcelamento); setConfirmarExclusao(null); }}>Excluir Todas as Parcelas</button>
+              <button className="btn-primary" style={{ marginTop: '12px' }} onClick={() => setConfirmarExclusao(null)}>Cancelar</button>
             </div>
           </div>
         </div>
@@ -861,6 +924,51 @@ export default function GastosVariaveisTab() {
                 <button type="button" className="btn-secondary" onClick={() => setPagamentoModal(null)} style={{ padding: '14px 24px' }}>Cancelar</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL GERENCIAR CATEGORIAS */}
+      {modalCategorias && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
+          <div className="section-card" style={{ width: '90%', maxWidth: '450px', background: '#16162a', padding: '32px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.1)', maxHeight: '80vh', overflowY: 'auto' }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.3rem', color: '#fff' }}>⚙️ Categorias (Variáveis)</h3>
+            
+            <form onSubmit={adicionarCategoria} style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
+              <input 
+                type="color" 
+                value={novaCategoriaCor} 
+                onChange={e => setNovaCategoriaCor(e.target.value)} 
+                style={{ width: '40px', height: '40px', padding: '0', border: 'none', borderRadius: '8px', cursor: 'pointer', background: 'transparent' }} 
+                title="Cor da categoria"
+              />
+              <input 
+                type="text" 
+                value={novaCategoriaNome} 
+                onChange={e => setNovaCategoriaNome(e.target.value)} 
+                placeholder="Ex: 📺 Eletrônicos / Bens" 
+                className="form-input" 
+                style={{ flex: 1, padding: '8px 12px' }} 
+                required 
+              />
+              <button type="submit" className="btn-primary" style={{ padding: '8px 16px' }}>➕</button>
+            </form>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {categorias.map(c => (
+                <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.03)', padding: '12px', borderRadius: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: c.cor }}></div>
+                    <span style={{ color: '#fff' }}>{c.label}</span>
+                  </div>
+                  <button onClick={() => removerCategoria(c.id)} style={{ background: 'transparent', border: 'none', color: '#ff6b6b', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ marginTop: '24px', textAlign: 'center' }}>
+              <button onClick={() => setModalCategorias(false)} className="btn-secondary" style={{ width: '100%' }}>Fechar</button>
+            </div>
           </div>
         </div>
       )}

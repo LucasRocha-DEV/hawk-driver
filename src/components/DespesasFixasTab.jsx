@@ -26,35 +26,21 @@ const MESES = [
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
 ];
 
-const CATEGORIAS = [
-  'Aluguel / Financiamento',
-  'Energia Elétrica',
-  'Água',
-  'Internet',
-  'Celular',
-  'Plano de Saúde',
-  'Seguro',
-  'Streaming',
-  'Academia',
-  'Escola / Curso',
-  'Condomínio',
-  'Outros'
+const CATEGORIAS_DEFAULT = [
+  { id: 'Aluguel / Financiamento', label: '🏠 Aluguel / Financ.', cor: '#ff6b6b' },
+  { id: 'Energia Elétrica', label: '⚡ Energia', cor: '#ffd93d' },
+  { id: 'Água', label: '💧 Água', cor: '#00d4aa' },
+  { id: 'Internet', label: '🌐 Internet', cor: '#6c5ce7' },
+  { id: 'Celular', label: '📱 Celular', cor: '#a29bfe' },
+  { id: 'Plano de Saúde', label: '🏥 Saúde', cor: '#fd79a8' },
+  { id: 'Seguro', label: '🛡️ Seguro', cor: '#00b894' },
+  { id: 'Streaming', label: '📺 Streaming', cor: '#e17055' },
+  { id: 'Academia', label: '🏋️ Academia', cor: '#0984e3' },
+  { id: 'Escola / Curso', label: '📚 Escola', cor: '#fdcb6e' },
+  { id: 'Condomínio', label: '🏢 Condomínio', cor: '#636e72' },
+  { id: 'Outros', label: '📦 Outros', cor: '#b2bec3' },
+  { id: 'Apps / Ferramentas', label: '🤖 Apps / Ferramentas', cor: '#00cec9' }
 ];
-
-const CORES_CATEGORIAS = {
-  'Aluguel / Financiamento': '#ff6b6b',
-  'Energia Elétrica': '#ffd93d',
-  'Água': '#00d4aa',
-  'Internet': '#6c5ce7',
-  'Celular': '#a29bfe',
-  'Plano de Saúde': '#fd79a8',
-  'Seguro': '#00b894',
-  'Streaming': '#e17055',
-  'Academia': '#0984e3',
-  'Escola / Curso': '#fdcb6e',
-  'Condomínio': '#636e72',
-  'Outros': '#b2bec3'
-};
 
 const formInicial = {
   descricao: '',
@@ -79,7 +65,7 @@ function renderLabelPie({ name, percent }) {
 }
 
 function chaveMes(mes, ano) {
-  return `${ano}-${String(mes).padStart(2, '0')}`;
+  return `${ano}-${String(mes + 1).padStart(2, '0')}`;
 }
 
 function despesaAtivaNoPeriodo(despesa, mes, ano) {
@@ -114,6 +100,7 @@ export default function DespesasFixasTab() {
   const [todasDespesas, setTodasDespesas] = useState([]);
   const [saldos, setSaldos] = useState({});
   const [cartoes, setCartoes] = useState([]);
+  const [faturasPagas, setFaturasPagas] = useState([]);
   const [form, setForm] = useState(formInicial);
   const [editandoId, setEditandoId] = useState(null);
 
@@ -121,6 +108,26 @@ export default function DespesasFixasTab() {
   const [pagamentoModal, setPagamentoModal] = useState(null);
   const [caixinhaFonte, setCaixinhaFonte] = useState('');
   const [processandoPagamento, setProcessandoPagamento] = useState(false);
+
+  // Categorias Dinâmicas
+  const [categorias, setCategorias] = useState(CATEGORIAS_DEFAULT);
+  const [modalCategorias, setModalCategorias] = useState(false);
+  const [novaCategoriaNome, setNovaCategoriaNome] = useState('');
+  const [novaCategoriaCor, setNovaCategoriaCor] = useState('#a29bfe');
+
+  // Mapa de cores dinâmico
+  const mapaCores = useMemo(() => {
+    const mapa = {};
+    categorias.forEach(c => { mapa[c.id] = c.cor; });
+    return mapa;
+  }, [categorias]);
+
+  // Labels dinâmicos
+  const mapaLabels = useMemo(() => {
+    const mapa = {};
+    categorias.forEach(c => { mapa[c.id] = c.label; });
+    return mapa;
+  }, [categorias]);
 
   useEffect(() => {
     if (!usuario) return;
@@ -145,10 +152,27 @@ export default function DespesasFixasTab() {
       setCartoes(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
+    // Snapshot Categorias Fixas
+    const unsubCategorias = onSnapshot(doc(db, 'usuarios', usuario.uid, 'configuracoes', 'categorias_fixas'), (snap) => {
+      if (snap.exists() && snap.data().lista) {
+        setCategorias(snap.data().lista);
+      } else {
+        // Se não existir, salva os padrões no banco para o usuário poder editar depois
+        setDoc(doc(db, 'usuarios', usuario.uid, 'configuracoes', 'categorias_fixas'), { lista: CATEGORIAS_DEFAULT });
+      }
+    });
+
+    // Snapshot Faturas Pagas
+    const unsubFaturasPagas = onSnapshot(collection(db, 'usuarios', usuario.uid, 'faturas_pagas'), (snap) => {
+      setFaturasPagas(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
     return () => {
       unsubscribeDespesas();
       unsubSaldos();
       unsubCartoes();
+      unsubCategorias();
+      unsubFaturasPagas();
     };
   }, [usuario]);
 
@@ -269,7 +293,17 @@ export default function DespesasFixasTab() {
         dados.mes = mesAtual;
         dados.ano = anoAtual;
         dados.pago = false;
-        dados.pagoPorMes = {};
+        
+        let pagoPorMesInicial = {};
+        if (dados.cartaoId) {
+          const chaveAtual = chaveMes(mesAtual, anoAtual);
+          const seloId = `${dados.cartaoId}_${chaveAtual}`;
+          const faturaJaPaga = faturasPagas.some(f => f.id === seloId && f.pago);
+          if (faturaJaPaga) {
+             pagoPorMesInicial[chaveAtual] = true;
+          }
+        }
+        dados.pagoPorMes = pagoPorMesInicial;
 
         const colRef = collection(db, 'usuarios', usuario.uid, 'despesas_fixas');
         await addDoc(colRef, dados);
@@ -374,6 +408,38 @@ export default function DespesasFixasTab() {
     setProcessandoPagamento(false);
   };
 
+  // ── Gerenciamento de Categorias ──
+  const adicionarCategoria = async (e) => {
+    e.preventDefault();
+    if (!usuario || !novaCategoriaNome.trim()) return;
+    try {
+      const novaCat = {
+        id: novaCategoriaNome.trim(),
+        label: novaCategoriaNome.trim(),
+        cor: novaCategoriaCor
+      };
+      const novaLista = [...categorias, novaCat];
+      await setDoc(doc(db, 'usuarios', usuario.uid, 'configuracoes', 'categorias_fixas'), { lista: novaLista }, { merge: true });
+      setNovaCategoriaNome('');
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao adicionar categoria.');
+    }
+  };
+
+  const removerCategoria = async (catId) => {
+    if (!usuario) return;
+    if (window.confirm(`Tem certeza que deseja remover a categoria "${catId}"? (Suas despesas antigas continuarão funcionando)`)) {
+      try {
+        const novaLista = categorias.filter(c => c.id !== catId);
+        await setDoc(doc(db, 'usuarios', usuario.uid, 'configuracoes', 'categorias_fixas'), { lista: novaLista }, { merge: true });
+      } catch (err) {
+        console.error(err);
+        alert('Erro ao remover categoria.');
+      }
+    }
+  };
+
   function TooltipGrafico({ active, payload }) {
     if (!active || !payload || !payload.length) return null;
     const { name, value } = payload[0];
@@ -392,6 +458,12 @@ export default function DespesasFixasTab() {
         <button className="month-nav-btn" onClick={mesAnterior} aria-label="Mês anterior">‹</button>
         <h2 className="month-title">{MESES[mesAtual]} {anoAtual}</h2>
         <button className="month-nav-btn" onClick={mesSeguinte} aria-label="Próximo mês">›</button>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+        <button className="btn-sm" onClick={() => setModalCategorias(true)} style={{ background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' }}>
+          ⚙️ Gerenciar Categorias
+        </button>
       </div>
 
       {/* CARD PRINCIPAL - TOTAL */}
@@ -496,8 +568,8 @@ export default function DespesasFixasTab() {
               required
             >
               <option value="">Selecione...</option>
-              {CATEGORIAS.map((cat) => (
-                <option key={cat} value={cat}>{cat}</option>
+              {categorias.map((cat) => (
+                <option key={cat.id} value={cat.id}>{cat.label}</option>
               ))}
             </select>
           </div>
@@ -630,8 +702,8 @@ export default function DespesasFixasTab() {
                     {isRecorrente && <span className="badge-recorrente" title="Conta recorrente">🔁</span>}
                   </span>
                   <div style={{ display: 'flex', gap: '6px' }}>
-                    <span className="expense-categoria-badge" style={{ backgroundColor: CORES_CATEGORIAS[d.categoria] || '#b2bec3' }}>
-                      {d.categoria}
+                    <span className="expense-categoria-badge" style={{ backgroundColor: mapaCores[d.categoria] || '#b2bec3' }}>
+                      {mapaLabels[d.categoria] || d.categoria}
                     </span>
                     <span className="expense-categoria-badge" style={{ backgroundColor: tagNaturezaCor, color: '#111' }}>
                       {tagNaturezaIcone} {d.natureza === 'EMPRESA' ? 'Empresa' : (d.isEsposa ? 'Esposa' : 'Pessoal')}
@@ -671,7 +743,7 @@ export default function DespesasFixasTab() {
             <PieChart>
               <Pie data={dadosGrafico} cx="50%" cy="50%" outerRadius={120} innerRadius={50} dataKey="value" label={renderLabelPie} labelLine={false} paddingAngle={2} strokeWidth={0}>
                 {dadosGrafico.map((entry) => (
-                  <Cell key={entry.name} fill={CORES_CATEGORIAS[entry.name] || '#b2bec3'} />
+                  <Cell key={entry.name} fill={mapaCores[entry.name] || '#b2bec3'} />
                 ))}
               </Pie>
               <Tooltip content={<TooltipGrafico />} />
@@ -721,6 +793,51 @@ export default function DespesasFixasTab() {
                 <button type="button" className="btn-secondary" onClick={() => setPagamentoModal(null)} style={{ padding: '14px 24px' }}>Cancelar</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL GERENCIAR CATEGORIAS */}
+      {modalCategorias && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
+          <div className="section-card" style={{ width: '90%', maxWidth: '450px', background: '#16162a', padding: '32px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.1)', maxHeight: '80vh', overflowY: 'auto' }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.3rem', color: '#fff' }}>⚙️ Categorias (Fixas)</h3>
+            
+            <form onSubmit={adicionarCategoria} style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
+              <input 
+                type="color" 
+                value={novaCategoriaCor} 
+                onChange={e => setNovaCategoriaCor(e.target.value)} 
+                style={{ width: '40px', height: '40px', padding: '0', border: 'none', borderRadius: '8px', cursor: 'pointer', background: 'transparent' }} 
+                title="Cor da categoria"
+              />
+              <input 
+                type="text" 
+                value={novaCategoriaNome} 
+                onChange={e => setNovaCategoriaNome(e.target.value)} 
+                placeholder="Ex: 📱 Apps / Ferramentas" 
+                className="form-input" 
+                style={{ flex: 1, padding: '8px 12px' }} 
+                required 
+              />
+              <button type="submit" className="btn-primary" style={{ padding: '8px 16px' }}>➕</button>
+            </form>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {categorias.map(c => (
+                <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.03)', padding: '12px', borderRadius: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: c.cor }}></div>
+                    <span style={{ color: '#fff' }}>{c.label}</span>
+                  </div>
+                  <button onClick={() => removerCategoria(c.id)} style={{ background: 'transparent', border: 'none', color: '#ff6b6b', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ marginTop: '24px', textAlign: 'center' }}>
+              <button onClick={() => setModalCategorias(false)} className="btn-secondary" style={{ width: '100%' }}>Fechar</button>
+            </div>
           </div>
         </div>
       )}
