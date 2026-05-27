@@ -5,6 +5,8 @@ import {
   collection,
   doc,
   setDoc,
+  getDoc,
+  updateDoc,
   deleteDoc,
   onSnapshot,
   query,
@@ -112,6 +114,7 @@ export default function UberTab() {
   const [retiradasList, setRetiradasList] = useState([]);
   const [fraseIndex, setFraseIndex] = useState(0);
   const [fraseVisivel, setFraseVisivel] = useState(true);
+  const [saldos, setSaldos] = useState({});
 
   // Form state
   const [km, setKm] = useState('');
@@ -124,6 +127,11 @@ export default function UberTab() {
   const [categoriasSelecionadas, setCategoriasSelecionadas] = useState([]);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState(null);
+
+  // ─── Repasse State ───
+  const [mostrarRepasseModal, setMostrarRepasseModal] = useState(false);
+  const [processandoRepasse, setProcessandoRepasse] = useState(false);
+  const saldoRetido = saldos.saldoRetidoApps || 0;
 
   // Histórico state hooks
   const [historicoExpandido, setHistoricoExpandido] = useState(false);
@@ -308,6 +316,16 @@ export default function UberTab() {
         mapa[docSnap.id] = { id: docSnap.id, ...docSnap.data() };
       });
       setRegistrosMap(mapa);
+    });
+    return () => unsubscribe();
+  }, [usuario]);
+
+  // ─── Firestore Listener: Saldos ───
+  useEffect(() => {
+    if (!usuario) return;
+    const saldoRef = doc(db, 'usuarios', usuario.uid, 'saldos', 'atual');
+    const unsubscribe = onSnapshot(saldoRef, (docSnap) => {
+      if (docSnap.exists()) setSaldos(docSnap.data());
     });
     return () => unsubscribe();
   }, [usuario]);
@@ -503,35 +521,26 @@ export default function UberTab() {
     setSalvando(true);
     setErro(null);
 
-    // Calculate duration automatically from start/end times if filled
-    let duracaoRodada = horarioRodado;
-    if (horaInicio && horaFim) {
-      const [hStart, mStart] = horaInicio.split(':').map(Number);
-      let [hEnd, mEnd] = horaFim.split(':').map(Number);
-
-      let startMinutes = hStart * 60 + mStart;
-      let endMinutes = hEnd * 60 + mEnd;
-
-      if (endMinutes < startMinutes) {
-        endMinutes += 24 * 60; // Spans across midnight
+    try {
+      const brutoNum = parseFloat(totalBruto) || 0;
+      const gastosNum = parseFloat(gastosGerais) || 0;
+      const totalLiquido = brutoNum - gastosNum;
+      
+      const docRef = doc(db, 'usuarios', usuario.uid, 'registros', dataChave);
+      
+      const snap = await getDoc(docRef);
+      let diferencaBruto = brutoNum;
+      if (snap.exists()) {
+        diferencaBruto = brutoNum - (Number(snap.data().totalBruto) || 0);
       }
 
-      const diffMinutes = endMinutes - startMinutes;
-      const h = Math.floor(diffMinutes / 60);
-      const m = diffMinutes % 60;
-      duracaoRodada = `${h}h${m > 0 ? String(m).padStart(2, '0') : '00'}`;
-    }
-
-    try {
-      const totalLiquido = brutoNum - gastosNum;
-      const docRef = doc(db, 'usuarios', usuario.uid, 'registros', dataChave);
       const dados = {
-        km: kmNum,
+        km: parseFloat(km) || 0,
         totalBruto: brutoNum,
         gastosGerais: gastosNum,
         totalLiquido,
-        viagens: viagensNum,
-        horarioRodado: duracaoRodada || '',
+        viagens: parseInt(viagens, 10) || 0,
+        horarioRodado: horarioRodado || '',
         horaInicio: horaInicio || '',
         horaFim: horaFim || '',
         categorias: categoriasSelecionadas || [],
@@ -539,15 +548,21 @@ export default function UberTab() {
         data: dataChave,
         atualizadoEm: serverTimestamp()
       };
-      // Preserve caixinha sent flags if they exist
-      // Preserve caixinha sent flag se existir
+      
       if (registroDoDia && registroDoDia.caixinhasEnviadas) {
         dados.caixinhasEnviadas = true;
       } else {
         dados.caixinhasEnviadas = false;
       }
+      
       await setDoc(docRef, dados, { merge: true });
-      alert('✅ Registro diário salvo com sucesso!');
+
+      if (diferencaBruto !== 0) {
+        const saldoRef = doc(db, 'usuarios', usuario.uid, 'saldos', 'atual');
+        await setDoc(saldoRef, { saldoRetidoApps: increment(diferencaBruto) }, { merge: true });
+      }
+
+      alert('✅ Registro diário salvo!');
     } catch (err) {
       console.error('Erro ao salvar registro:', err);
       setErro(err.code || err.message || 'Erro de Gravação');
@@ -586,25 +601,37 @@ export default function UberTab() {
     setSalvandoConfig(false);
   };
 
-  // ─── Caixinha toggle ───
-  // ─── Confirmar Envio para Caixinhas (Patrimônio) ───
-  const confirmarEnvioCaixinhas = async () => {
-    if (!usuario || !registroDoDia || registroDoDia.caixinhasEnviadas) return;
-    setSalvando(true);
+  // ─── Processar Repasse Semanal ───
+  const processarRepasse = async () => {
+    if (!usuario) return;
+    setProcessandoRepasse(true);
     try {
+      const diasPendentes = registrosArray.filter(r => (r.totalBruto > 0 && !r.caixinhasEnviadas));
+      
+      let sumBrutoPendentes = 0;
+      let sumLiquidoPendentes = 0;
+      
+      diasPendentes.forEach(d => {
+        sumBrutoPendentes += (d.totalBruto || 0);
+        sumLiquidoPendentes += (d.totalLiquido || 0);
+      });
+
+      const valorParaDistribuirBruto = saldoRetido;
+      const valorExtra = valorParaDistribuirBruto - sumBrutoPendentes;
+      const valorParaDistribuirLiquido = sumLiquidoPendentes + valorExtra;
+
       const valoresCaixinhas = {
-        emergencia: brutoNum * (pctEmergencia / 100),
-        manutencao: brutoNum * (pctManutencao / 100),
-        empresa: liquidoNum * (pctEmpresa / 100),
-        livre: liquidoNum * (pctLivre / 100),
-        contas: liquidoNum * (pctContas / 100)
+        emergencia: valorParaDistribuirBruto * (pctEmergencia / 100),
+        manutencao: valorParaDistribuirBruto * (pctManutencao / 100),
+        empresa: valorParaDistribuirLiquido * (pctEmpresa / 100),
+        livre: valorParaDistribuirLiquido * (pctLivre / 100),
+        contas: valorParaDistribuirLiquido * (pctContas / 100)
       };
 
       const saldoUpdates = {};
       const transacoesRef = collection(db, 'usuarios', usuario.uid, 'transacoes_patrimonio');
       const batchPromises = [];
 
-      // Para cada caixinha que tem valor > 0, preparamos o incremento e a transação
       for (const [chaveId, valor] of Object.entries(valoresCaixinhas)) {
         if (valor > 0) {
           saldoUpdates[chaveId] = increment(valor);
@@ -622,7 +649,7 @@ export default function UberTab() {
               caixinhaNome: nomeBonito,
               tipo: 'ENTRADA',
               valor: valor,
-              motivo: `Depósito automático do fechamento do dia ${dataSelecionada.toLocaleDateString('pt-BR')}`,
+              motivo: `Repasse Semanal (Apps)`,
               data: formatarDataChave(new Date()),
               criadoEm: serverTimestamp()
             })
@@ -630,20 +657,25 @@ export default function UberTab() {
         }
       }
 
+      saldoUpdates.saldoRetidoApps = increment(-valorParaDistribuirBruto);
       saldoUpdates.atualizadoEm = serverTimestamp();
+      
       const saldoRef = doc(db, 'usuarios', usuario.uid, 'saldos', 'atual');
       batchPromises.push(setDoc(saldoRef, saldoUpdates, { merge: true }));
 
-      const registroRef = doc(db, 'usuarios', usuario.uid, 'registros', dataChave);
-      batchPromises.push(setDoc(registroRef, { caixinhasEnviadas: true }, { merge: true }));
+      diasPendentes.forEach(d => {
+        const regRef = doc(db, 'usuarios', usuario.uid, 'registros', d.id);
+        batchPromises.push(setDoc(regRef, { caixinhasEnviadas: true }, { merge: true }));
+      });
 
       await Promise.all(batchPromises);
-      alert('🎉 Dinheiro enviado com sucesso para a aba Patrimônio!');
+      alert('🎉 Repasse distribuído com sucesso para o seu Patrimônio!');
+      setMostrarRepasseModal(false);
     } catch (err) {
-      console.error('Erro ao enviar caixinhas:', err);
-      alert('Erro ao enviar dinheiro: ' + err.message);
+      console.error(err);
+      alert('Erro ao processar repasse: ' + err.message);
     }
-    setSalvando(false);
+    setProcessandoRepasse(false);
   };
 
   // ─── Custom tooltip for line chart ───
@@ -1164,32 +1196,23 @@ export default function UberTab() {
           </div>
         </div>
 
-        {/* Botão Global de Envio para Patrimônio */}
-        <div style={{ marginTop: '24px', textAlign: 'center' }}>
-          {registroDoDia?.caixinhasEnviadas ? (
-            <div style={{
-              background: 'rgba(0, 212, 170, 0.1)',
-              border: '1px solid rgba(0, 212, 170, 0.3)',
-              color: '#00d4aa',
-              padding: '16px',
-              borderRadius: '12px',
-              fontWeight: 600,
-              display: 'inline-block'
-            }}>
-              ✅ Distribuição enviada para a aba Patrimônio neste dia!
-            </div>
-          ) : liquidoNum > 0 ? (
-            <button
-              className="btn-primary"
-              onClick={confirmarEnvioCaixinhas}
-              disabled={salvando}
-              style={{ fontSize: '1rem', padding: '14px 28px' }}
-            >
-              {salvando ? 'Processando...' : '💰 Confirmar Envio para Caixinhas (Patrimônio)'}
-            </button>
-          ) : (
-            <p style={{ color: 'var(--text-secondary)' }}>Sem lucros para distribuir neste dia.</p>
-          )}
+        {/* Novo Painel de Repasse Semanal */}
+        <div style={{ marginTop: '32px', textAlign: 'center', background: 'var(--bg-card)', padding: '24px', borderRadius: '16px', border: '1px solid var(--glass-border)' }}>
+          <h3 style={{ fontSize: '1.2rem', color: 'var(--text-primary)', marginBottom: '8px' }}>💰 A Receber dos Apps</h3>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '16px' }}>
+            Valor acumulado dos seus dias trabalhados que ainda não foi para as Caixinhas.
+          </p>
+          <div style={{ fontSize: '2.5rem', fontWeight: 800, color: '#00cec9', marginBottom: '24px' }}>
+            {formatarMoeda(saldoRetido)}
+          </div>
+          <button
+            className="btn-primary"
+            onClick={() => setMostrarRepasseModal(true)}
+            disabled={saldoRetido <= 0}
+            style={{ fontSize: '1.1rem', padding: '16px 32px', borderRadius: '50px', background: 'linear-gradient(135deg, #00cec9, #0984e3)' }}
+          >
+            🤑 Receber Repasse Semanal
+          </button>
         </div>
       </div>
 
@@ -1382,6 +1405,30 @@ export default function UberTab() {
 
       {/* ═══════ 10. PAINEL DE CONSISTÊNCIA ═══════ */}
       <ConsistenciaPanel registrosMap={registrosMap} mesAtivo={mesAtivo} />
+      {/* MODAL REPASSE SEMANAL */}
+      {mostrarRepasseModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
+          <div className="section-card" style={{ width: '90%', maxWidth: '450px', background: '#16162a', padding: '32px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.3rem', color: '#fff', textAlign: 'center' }}>🤑 Distribuir Repasse</h3>
+            
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', textAlign: 'center', marginBottom: '24px' }}>
+              O app vai pegar o saldo acumulado de <strong>{formatarMoeda(saldoRetido)}</strong> e dividir automaticamente nas suas Caixinhas de Patrimônio (Empresa, Lazer, etc).
+            </p>
+
+            <div style={{ background: 'rgba(0, 206, 201, 0.1)', padding: '16px', borderRadius: '12px', marginBottom: '24px', textAlign: 'center', border: '1px solid rgba(0, 206, 201, 0.3)' }}>
+              <div style={{ fontSize: '0.9rem', color: '#00cec9' }}>Valor que será distribuído:</div>
+              <div style={{ fontSize: '1.8rem', color: '#00cec9', fontWeight: 'bold', marginTop: '4px' }}>{formatarMoeda(saldoRetido)}</div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+              <button onClick={processarRepasse} className="btn-primary" style={{ flex: 1, padding: '14px', fontSize: '1.05rem', background: '#00cec9', color: '#000' }} disabled={processandoRepasse}>
+                {processandoRepasse ? 'Processando...' : 'Confirmar Repasse'}
+              </button>
+              <button type="button" className="btn-secondary" onClick={() => setMostrarRepasseModal(false)} style={{ padding: '14px 24px' }}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

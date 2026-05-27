@@ -109,6 +109,7 @@ export default function DespesasFixasTab() {
   const hoje = new Date();
   const [mesAtual, setMesAtual] = useState(hoje.getMonth());
   const [anoAtual, setAnoAtual] = useState(hoje.getFullYear());
+  const [filtroNatureza, setFiltroNatureza] = useState('TODOS');
 
   const [todasDespesas, setTodasDespesas] = useState([]);
   const [saldos, setSaldos] = useState({});
@@ -154,6 +155,14 @@ export default function DespesasFixasTab() {
   const despesasDoMes = useMemo(() => {
     return todasDespesas.filter(d => despesaAtivaNoPeriodo(d, mesAtual, anoAtual));
   }, [todasDespesas, mesAtual, anoAtual]);
+
+  const despesasExibidas = useMemo(() => {
+    if (filtroNatureza === 'TODOS') return despesasDoMes;
+    if (filtroNatureza === 'PESSOAL') {
+      return despesasDoMes.filter(d => d.natureza === 'PESSOAL' || !d.natureza);
+    }
+    return despesasDoMes.filter(d => d.natureza === filtroNatureza);
+  }, [despesasDoMes, filtroNatureza]);
 
   const isPago = useCallback((despesa) => {
     const chave = chaveMes(mesAtual, anoAtual);
@@ -581,16 +590,30 @@ export default function DespesasFixasTab() {
       </form>
 
       <div className="expense-list">
-        <h3 className="section-title">
-          Despesas de {MESES[mesAtual]} {anoAtual}
-          <span className="badge-count">{despesasDoMes.length}</span>
-        </h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
+          <h3 className="section-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+            Despesas de {MESES[mesAtual]} {anoAtual}
+            <span className="badge-count">{despesasExibidas.length}</span>
+          </h3>
+          
+          <div className="tab-nav" style={{ padding: 0, border: 'none', background: 'transparent' }}>
+            <button type="button" className={`tab-btn ${filtroNatureza === 'TODOS' ? 'tab-active' : ''}`} onClick={() => setFiltroNatureza('TODOS')}>
+              <span className="tab-label">Todas</span>
+            </button>
+            <button type="button" className={`tab-btn ${filtroNatureza === 'EMPRESA' ? 'tab-active' : ''}`} onClick={() => setFiltroNatureza('EMPRESA')}>
+              <span className="tab-icon">🏢</span> <span className="tab-label">Empresa</span>
+            </button>
+            <button type="button" className={`tab-btn ${filtroNatureza === 'PESSOAL' ? 'tab-active' : ''}`} onClick={() => setFiltroNatureza('PESSOAL')}>
+              <span className="tab-icon">👤</span> <span className="tab-label">Pessoal</span>
+            </button>
+          </div>
+        </div>
 
-        {despesasDoMes.length === 0 && (
-          <p className="empty-message">Nenhuma despesa registrada neste mês.</p>
+        {despesasExibidas.length === 0 && (
+          <p className="empty-message">Nenhuma despesa registrada para este filtro neste mês.</p>
         )}
 
-        {despesasDoMes.map((d) => {
+        {despesasExibidas.map((d) => {
           const pago = isPago(d);
           const isRecorrente = d.recorrente !== false;
           

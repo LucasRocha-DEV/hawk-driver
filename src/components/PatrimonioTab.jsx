@@ -15,6 +15,7 @@ import {
 } from 'firebase/firestore';
 
 const CAIXINHAS = [
+  { id: 'saldoRetidoApps', nome: 'A Receber dos Apps (Uber/99)', emoji: '⏳', cor: '#00cec9' },
   { id: 'emergencia', nome: 'Reserva de Emergência', emoji: '🚨', cor: '#ffd93d' },
   { id: 'manutencao', nome: 'Manutenção', emoji: '🔧', cor: '#ff6b6b' },
   { id: 'empresa', nome: 'Empresa', emoji: '🏢', cor: '#6c5ce7' },
@@ -74,14 +75,27 @@ export default function PatrimonioTab() {
   // Totais
   const totais = useMemo(() => {
     const saldoConta = Number(saldos.saldoConta) || 0;
+    const saldoRetidoApps = Number(saldos.saldoRetidoApps) || 0;
     let totalCaixinhas = 0;
+    let totalEmpresa = 0;
+    let totalPessoal = 0;
+    
     CAIXINHAS.forEach(c => {
-      totalCaixinhas += Number(saldos[c.id]) || 0;
+      const val = Number(saldos[c.id]) || 0;
+      if (c.id !== 'saldoRetidoApps') {
+        totalCaixinhas += val;
+        if (c.id === 'empresa' || c.id === 'manutencao') totalEmpresa += val;
+        if (c.id === 'contas' || c.id === 'emergencia' || c.id === 'livre') totalPessoal += val;
+      }
     });
+    
     return {
       saldoConta,
+      saldoRetidoApps,
       totalCaixinhas,
-      patrimonio: saldoConta + totalCaixinhas
+      totalEmpresa,
+      totalPessoal,
+      patrimonio: saldoConta + totalCaixinhas + saldoRetidoApps
     };
   }, [saldos]);
 
@@ -156,7 +170,7 @@ export default function PatrimonioTab() {
       </div>
 
       {/* Patrimônio Total */}
-      <div className="patrimonio-total-card">
+      <div className="patrimonio-total-card" style={{ marginBottom: '16px' }}>
         <div className="patrimonio-total-bg" />
         <div className="patrimonio-total-content">
           <span className="patrimonio-total-label">Patrimônio Total</span>
@@ -165,7 +179,78 @@ export default function PatrimonioTab() {
             <span>🏦 Conta: {formatarMoeda(totais.saldoConta)}</span>
             <span className="patrimonio-sep">•</span>
             <span>📦 Caixinhas: {formatarMoeda(totais.totalCaixinhas)}</span>
+            <span className="patrimonio-sep">•</span>
+            <span>⏳ A Receber: {formatarMoeda(totais.saldoRetidoApps)}</span>
           </div>
+        </div>
+      </div>
+
+      {/* Cards de Resumo Empresa / Pessoal */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '32px' }}>
+        <div className="metric-card" style={{ padding: '16px', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+          <div className="metric-card-accent" style={{ background: 'linear-gradient(135deg, #a29bfe, #6c5ce7)' }} />
+          <span className="metric-card-label" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>🏢 Patrimônio Empresa</span>
+          <span className="metric-card-value" style={{ fontSize: '1.4rem', color: '#a29bfe', marginTop: '8px' }}>{formatarMoeda(totais.totalEmpresa)}</span>
+        </div>
+        <div className="metric-card" style={{ padding: '16px', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+          <div className="metric-card-accent" style={{ background: 'linear-gradient(135deg, #74b9ff, #0984e3)' }} />
+          <span className="metric-card-label" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>👤 Patrimônio Pessoal</span>
+          <span className="metric-card-value" style={{ fontSize: '1.4rem', color: '#74b9ff', marginTop: '8px' }}>{formatarMoeda(totais.totalPessoal)}</span>
+        </div>
+      </div>
+
+      {/* A Receber dos Apps */}
+      <div className="patrimonio-section">
+        <h3 className="patrimonio-section-title">⏳ A Receber dos Apps (Carteira Virtual)</h3>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '16px' }}>
+          Dinheiro das corridas que ainda não caiu na sua conta bancária. Você pode editar caso receba algo extra da 99 ou outros apps.
+        </p>
+        <div className="caixinhas-saldo-grid" style={{ gridTemplateColumns: '1fr' }}>
+          {CAIXINHAS.filter(c => c.id === 'saldoRetidoApps').map(cx => {
+            const valor = Number(saldos[cx.id]) || 0;
+            const isOpen = extratoAberto === cx.id;
+            return (
+              <div key={cx.id} className="saldo-card" style={{ borderColor: cx.cor + '55', flexDirection: 'column', alignItems: 'stretch', background: 'rgba(0, 206, 201, 0.05)' }}>
+                <div className="saldo-card-accent" style={{ background: cx.cor }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%', padding: '4px 0' }}>
+                  <div className="saldo-card-left" style={{ display: 'flex', alignItems: 'center' }}>
+                    <span className="saldo-card-emoji">{cx.emoji}</span>
+                    <div className="saldo-card-info">
+                      <span className="saldo-card-nome" style={{ fontSize: '1.05rem', color: cx.cor }}>{cx.nome}</span>
+                      <span className="saldo-card-valor" style={{ color: cx.cor, fontSize: '1.5rem' }}>{formatarMoeda(valor)}</span>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <button className="btn-sm" onClick={() => abrirModal(cx.id, 'ENTRADA')} style={{ background: 'rgba(0,212,170,0.1)', color: '#00d4aa' }}>➕ Editar (Adicionar Extra)</button>
+                    <button className="btn-sm" onClick={() => abrirModal(cx.id, 'SAIDA')} style={{ background: 'rgba(255,107,107,0.1)', color: '#ff6b6b' }}>➖ Corrigir Erro</button>
+                    <button className="btn-sm" onClick={() => setExtratoAberto(isOpen ? null : cx.id)} style={{ background: 'rgba(255,255,255,0.05)', color: '#ddd' }}>📋 Extrato</button>
+                  </div>
+                </div>
+
+                {isOpen && (
+                  <div style={{ marginTop: '16px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '16px' }}>
+                    <h4 style={{ margin: '0 0 12px 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Histórico</h4>
+                    {getExtrato(cx.id).length === 0 ? (
+                      <p style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.3)' }}>Nenhuma transação recente.</p>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '200px', overflowY: 'auto' }}>
+                        {getExtrato(cx.id).map(t => (
+                          <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', background: 'rgba(255,255,255,0.02)', padding: '8px', borderRadius: '6px', fontSize: '0.8rem' }}>
+                            <div>
+                              <span style={{ color: t.tipo === 'ENTRADA' ? cx.cor : '#ff6b6b', fontWeight: 'bold', marginRight: '6px' }}>{t.tipo === 'ENTRADA' ? '+' : '-'}</span>
+                              <span>{t.motivo}</span>
+                              <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>{formatarData(t.data)}</div>
+                            </div>
+                            <span style={{ fontWeight: 'bold', color: t.tipo === 'ENTRADA' ? cx.cor : '#ff6b6b' }}>{formatarMoeda(t.valor)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
