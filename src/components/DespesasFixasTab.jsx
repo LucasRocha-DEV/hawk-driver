@@ -169,10 +169,19 @@ export default function DespesasFixasTab() {
     return false;
   }, [mesAtual, anoAtual]);
 
-  const { total, pago, pendente } = useMemo(() => {
-    const t = despesasDoMes.reduce((s, d) => s + Number(d.valor), 0);
-    const p = despesasDoMes.reduce((s, d) => (isPago(d) ? s + Number(d.valor) : s), 0);
-    return { total: t, pago: p, pendente: t - p };
+  const { total, pago, pendente, totalEmpresa, totalPessoal } = useMemo(() => {
+    let t = 0;
+    let p = 0;
+    let emp = 0;
+    let pes = 0;
+    despesasDoMes.forEach((d) => {
+      const val = Number(d.valor);
+      t += val;
+      if (isPago(d)) p += val;
+      if (d.natureza === 'EMPRESA') emp += val;
+      else pes += val;
+    });
+    return { total: t, pago: p, pendente: t - p, totalEmpresa: emp, totalPessoal: pes };
   }, [despesasDoMes, isPago]);
 
   const dadosGrafico = useMemo(() => {
@@ -376,13 +385,32 @@ export default function DespesasFixasTab() {
         <button className="month-nav-btn" onClick={mesSeguinte} aria-label="Próximo mês">›</button>
       </div>
 
+      {/* CARD PRINCIPAL - TOTAL */}
+      <div style={{ marginBottom: '16px' }}>
+        <div className="metric-card" style={{ padding: '24px', justifyContent: 'center', alignItems: 'center', gap: '16px' }}>
+          <div className="metric-card-accent" style={{ background: 'linear-gradient(135deg, #a29bfe, #6c5ce7)' }} />
+          <div className="metric-card-icon" style={{ width: '56px', height: '56px', fontSize: '1.8rem' }}>💸</div>
+          <span className="metric-card-label" style={{ fontSize: '1.1rem', margin: 0 }}>Total Fixo:</span>
+          <span className="metric-card-value" style={{ fontSize: '2.2rem', color: '#a29bfe' }}>{formatarMoeda(total)}</span>
+        </div>
+      </div>
+
+      {/* CARDS SECUNDÁRIOS */}
       <div className="metric-cards-grid">
         <div className="metric-card">
           <div className="metric-card-accent" style={{ background: 'linear-gradient(135deg, #a29bfe, #6c5ce7)' }} />
-          <div className="metric-card-icon">💸</div>
+          <div className="metric-card-icon">🏢</div>
           <div className="metric-card-body">
-            <span className="metric-card-label">Total Fixo</span>
-            <span className="metric-card-value" style={{ color: '#a29bfe' }}>{formatarMoeda(total)}</span>
+            <span className="metric-card-label">Empresa</span>
+            <span className="metric-card-value" style={{ color: '#a29bfe' }}>{formatarMoeda(totalEmpresa)}</span>
+          </div>
+        </div>
+        <div className="metric-card">
+          <div className="metric-card-accent" style={{ background: 'linear-gradient(135deg, #74b9ff, #0984e3)' }} />
+          <div className="metric-card-icon">👤</div>
+          <div className="metric-card-body">
+            <span className="metric-card-label">Pessoal</span>
+            <span className="metric-card-value" style={{ color: '#74b9ff' }}>{formatarMoeda(totalPessoal)}</span>
           </div>
         </div>
         <div className="metric-card">

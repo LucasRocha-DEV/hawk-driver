@@ -217,13 +217,19 @@ export default function GastosVariaveisTab() {
   }, [gastos]);
 
   const resumo = useMemo(() => {
-    const total = gastos.reduce((acc, g) => acc + Number(g.valor), 0);
+    let total = 0;
+    let totalEmpresa = 0;
+    let totalPessoal = 0;
+    
+    gastos.forEach(g => {
+      const v = Number(g.valor);
+      total += v;
+      if (g.natureza === 'EMPRESA') totalEmpresa += v;
+      else totalPessoal += v;
+    });
+
     const quantidade = gastos.length;
-    const media = quantidade > 0 ? total / quantidade : 0;
-    const totalCartao = gastos
-      .filter(g => g.metodoPagamento === 'Cartão de Crédito')
-      .reduce((acc, g) => acc + Number(g.valor), 0);
-    return { total, quantidade, media, totalCartao };
+    return { total, quantidade, totalEmpresa, totalPessoal };
   }, [gastos]);
 
   const dadosGrafico = useMemo(() => {
@@ -539,6 +545,43 @@ export default function GastosVariaveisTab() {
         <span className="month-nav-label">{MESES[mesAtual]} {anoAtual}</span>
         <button className="month-nav-btn" onClick={mesSeguinte}>›</button>
       </div>
+      {/* CARD PRINCIPAL - TOTAL */}
+      <div style={{ marginBottom: '16px' }}>
+        <div className="metric-card" style={{ padding: '24px', justifyContent: 'center', alignItems: 'center', gap: '16px' }}>
+          <div className="metric-card-accent" style={{ background: 'linear-gradient(135deg, #ff6b6b, #ee5a24)' }} />
+          <div className="metric-card-icon" style={{ width: '56px', height: '56px', fontSize: '1.8rem' }}>💸</div>
+          <span className="metric-card-label" style={{ fontSize: '1.1rem', margin: 0 }}>Total do Mês:</span>
+          <span className="metric-card-value" style={{ fontSize: '2.2rem', color: '#ff6b6b' }}>{formatarMoeda(resumo.total)}</span>
+        </div>
+      </div>
+
+      {/* CARDS SECUNDÁRIOS */}
+      <div className="metric-cards-grid" style={{ marginBottom: '24px' }}>
+        <div className="metric-card">
+          <div className="metric-card-accent" style={{ background: 'linear-gradient(135deg, #a29bfe, #6c5ce7)' }} />
+          <div className="metric-card-icon">🏢</div>
+          <div className="metric-card-body">
+            <span className="metric-card-label">Empresa</span>
+            <span className="metric-card-value" style={{ color: '#a29bfe' }}>{formatarMoeda(resumo.totalEmpresa)}</span>
+          </div>
+        </div>
+        <div className="metric-card">
+          <div className="metric-card-accent" style={{ background: 'linear-gradient(135deg, #74b9ff, #0984e3)' }} />
+          <div className="metric-card-icon">👤</div>
+          <div className="metric-card-body">
+            <span className="metric-card-label">Pessoal</span>
+            <span className="metric-card-value" style={{ color: '#74b9ff' }}>{formatarMoeda(resumo.totalPessoal)}</span>
+          </div>
+        </div>
+        <div className="metric-card">
+          <div className="metric-card-accent" style={{ background: 'linear-gradient(135deg, #6c5ce7, #a29bfe)' }} />
+          <div className="metric-card-icon">📊</div>
+          <div className="metric-card-body">
+            <span className="metric-card-label">Quantidade</span>
+            <span className="metric-card-value" style={{ color: '#6c5ce7' }}>{resumo.quantidade}</span>
+          </div>
+        </div>
+      </div>
 
       <div className="card">
         <h3 className="card-title">{editandoId ? '✎ Editar Gasto' : '➕ Novo Gasto Variável'}</h3>
@@ -687,24 +730,7 @@ export default function GastosVariaveisTab() {
         </form>
       </div>
 
-      <div className="metric-cards-grid">
-        <div className="metric-card">
-          <div className="metric-card-accent" style={{ background: 'linear-gradient(135deg, #ff6b6b, #ee5a24)' }} />
-          <div className="metric-card-icon">💸</div>
-          <div className="metric-card-body">
-            <span className="metric-card-label">Total do Mês</span>
-            <span className="metric-card-value" style={{ color: '#ff6b6b' }}>{formatarMoeda(resumo.total)}</span>
-          </div>
-        </div>
-        <div className="metric-card">
-          <div className="metric-card-accent" style={{ background: 'linear-gradient(135deg, #6c5ce7, #a29bfe)' }} />
-          <div className="metric-card-icon">📊</div>
-          <div className="metric-card-body">
-            <span className="metric-card-label">Quantidade</span>
-            <span className="metric-card-value" style={{ color: '#6c5ce7' }}>{resumo.quantidade}</span>
-          </div>
-        </div>
-      </div>
+
 
       {dadosGrafico.length > 0 && (
         <div className="card">

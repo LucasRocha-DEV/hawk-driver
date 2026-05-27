@@ -3550,8 +3550,8 @@ body {
    ======================================== */
 .metric-cards-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
   margin-bottom: 24px;
 }
 
@@ -3560,10 +3560,10 @@ body {
   background: var(--bg-card);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
-  padding: 20px;
+  padding: 14px 12px; /* Menos padding horizontal para liberar espaço */
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 10px; /* Menos espaço entre ícone e texto */
   overflow: hidden;
   transition: var(--transition);
 }
@@ -3584,22 +3584,24 @@ body {
 }
 
 .metric-card-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
+  width: 40px; /* Ícone levemente menor para dar espaço aos números */
+  height: 40px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.05);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   flex-shrink: 0;
 }
 
 .metric-card-body {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
+  min-width: 0;
+  flex: 1; /* Garante que o texto ocupe o restante do espaço */
 }
 
 .metric-card-label {
@@ -3608,12 +3610,40 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.5px;
   font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .metric-card-value {
   font-family: var(--font-heading);
-  font-size: 1.4rem;
+  font-size: 1.15rem; /* Fonte ideal para encaixar R$ 10.000,00 */
   font-weight: 800;
+  /* Sem nowrap, permite quebrar linha se for muito longo, ou expandir naturalmente */
+  line-height: 1.2;
+}
+
+@media (max-width: 768px) {
+  .metric-cards-grid {
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 10px;
+  }
+  .metric-card {
+    padding: 12px;
+    gap: 8px;
+  }
+  .metric-card-icon {
+    width: 32px;
+    height: 32px;
+    font-size: 1rem;
+    border-radius: 8px;
+  }
+  .metric-card-label {
+    font-size: 0.65rem;
+  }
+  .metric-card-value {
+    font-size: 1rem;
+  }
 }
 
 /* ========================================

@@ -147,6 +147,121 @@ export default function UberTab() {
   const [retiradaData, setRetiradaData] = useState(formatarDataChave(new Date()));
   const [salvandoRetirada, setSalvandoRetirada] = useState(false);
 
+  // ─── Timer / Cronômetro State ───
+  const [jornadaAtiva, setJornadaAtiva] = useState(false);
+  const [jornadaInicioOriginal, setJornadaInicioOriginal] = useState(null);
+  const [jornadaInicioTimer, setJornadaInicioTimer] = useState(null);
+  const [jornadaAcumulada, setJornadaAcumulada] = useState(0);
+  const [tempoDecorrido, setTempoDecorrido] = useState(0);
+
+  // ─── Carregar Cronômetro do LocalStorage ───
+  useEffect(() => {
+    const ativa = localStorage.getItem('hawk_driver_jornada_ativa') === 'true';
+    const inicioOrig = localStorage.getItem('hawk_driver_jornada_inicio_original');
+    const inicioTimer = localStorage.getItem('hawk_driver_jornada_inicio_timer');
+    const acumulada = parseInt(localStorage.getItem('hawk_driver_jornada_acumulada') || '0', 10);
+
+    setJornadaAtiva(ativa);
+    setJornadaInicioOriginal(inicioOrig ? parseInt(inicioOrig, 10) : null);
+    setJornadaInicioTimer(inicioTimer ? parseInt(inicioTimer, 10) : null);
+    setJornadaAcumulada(acumulada);
+  }, []);
+
+  // ─── Salvar Cronômetro no LocalStorage ───
+  useEffect(() => {
+    localStorage.setItem('hawk_driver_jornada_ativa', jornadaAtiva.toString());
+    if (jornadaInicioOriginal) {
+      localStorage.setItem('hawk_driver_jornada_inicio_original', jornadaInicioOriginal.toString());
+    } else {
+      localStorage.removeItem('hawk_driver_jornada_inicio_original');
+    }
+    if (jornadaInicioTimer) {
+      localStorage.setItem('hawk_driver_jornada_inicio_timer', jornadaInicioTimer.toString());
+    } else {
+      localStorage.removeItem('hawk_driver_jornada_inicio_timer');
+    }
+    localStorage.setItem('hawk_driver_jornada_acumulada', jornadaAcumulada.toString());
+  }, [jornadaAtiva, jornadaInicioOriginal, jornadaInicioTimer, jornadaAcumulada]);
+
+  // ─── Atualizar Tempo em Tela (Interval) ───
+  useEffect(() => {
+    let interval = null;
+    if (jornadaAtiva && jornadaInicioTimer) {
+      interval = setInterval(() => {
+        const agora = Date.now();
+        const decorridoAqui = agora - jornadaInicioTimer;
+        setTempoDecorrido(jornadaAcumulada + decorridoAqui);
+      }, 1000);
+    } else {
+      setTempoDecorrido(jornadaAcumulada);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [jornadaAtiva, jornadaInicioTimer, jornadaAcumulada]);
+
+  const pad = (num) => String(num).padStart(2, '0');
+  
+  const formatarTempoTimer = (ms) => {
+    const totalSegundos = Math.floor(ms / 1000);
+    const horas = Math.floor(totalSegundos / 3600);
+    const minutos = Math.floor((totalSegundos % 3600) / 60);
+    const segundos = totalSegundos % 60;
+    return `${pad(horas)}:${pad(minutos)}:${pad(segundos)}`;
+  };
+
+  const iniciarJornada = () => {
+    const agora = Date.now();
+    const dataObj = new Date(agora);
+    
+    setJornadaAtiva(true);
+    setJornadaInicioOriginal(agora);
+    setJornadaInicioTimer(agora);
+    setJornadaAcumulada(0);
+    setTempoDecorrido(0);
+
+    setHoraInicio(`${pad(dataObj.getHours())}:${pad(dataObj.getMinutes())}`);
+  };
+
+  const pausarJornada = () => {
+    if (jornadaAtiva && jornadaInicioTimer) {
+      const agora = Date.now();
+      const acumulou = agora - jornadaInicioTimer;
+      setJornadaAcumulada(prev => prev + acumulou);
+      setJornadaAtiva(false);
+      setJornadaInicioTimer(null);
+    }
+  };
+
+  const retomarJornada = () => {
+    const agora = Date.now();
+    setJornadaInicioTimer(agora);
+    setJornadaAtiva(true);
+  };
+
+  const encerrarJornada = () => {
+    let tempoTotalMs = jornadaAcumulada;
+    const agora = Date.now();
+    const dataObj = new Date(agora);
+
+    if (jornadaAtiva && jornadaInicioTimer) {
+      tempoTotalMs += (agora - jornadaInicioTimer);
+    }
+
+    setJornadaAtiva(false);
+    setJornadaInicioOriginal(null);
+    setJornadaInicioTimer(null);
+    setJornadaAcumulada(0);
+    setTempoDecorrido(0);
+    
+    const totalSegundos = Math.floor(tempoTotalMs / 1000);
+    const horas = Math.floor(totalSegundos / 3600);
+    const minutos = Math.floor((totalSegundos % 3600) / 60);
+    
+    setHoraFim(`${pad(dataObj.getHours())}:${pad(dataObj.getMinutes())}`);
+    setHorarioRodado(`${horas}h${minutos > 0 ? pad(minutos) : '00'}`);
+  };
+
   // ─── Handlers ───
   const toggleCategoria = (cat) => {
     setCategoriasSelecionadas(prev =>
@@ -637,6 +752,52 @@ export default function UberTab() {
         <p className="calendar-selected-date">
           Data selecionada: <strong>{dataSelecionada.toLocaleDateString('pt-BR')}</strong>
         </p>
+      </div>
+
+      {/* ═══════ CRONÔMETRO DE JORNADA ═══════ */}
+      <div className="section-card" style={{ textAlign: 'center', padding: '32px 20px', position: 'relative', overflow: 'hidden' }}>
+        <h2 style={{ fontSize: '1rem', color: 'var(--text-secondary)', marginBottom: '16px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '2px' }}>
+          ⏳ Jornada de Trabalho
+        </h2>
+        
+        <div style={{
+          fontFamily: 'monospace',
+          fontSize: 'clamp(3rem, 10vw, 5rem)',
+          fontWeight: 800,
+          color: jornadaAtiva ? 'var(--green)' : (tempoDecorrido > 0 ? 'var(--yellow)' : 'var(--text-primary)'),
+          textShadow: jornadaAtiva ? '0 0 20px var(--green-glow)' : 'none',
+          marginBottom: '32px',
+          letterSpacing: '2px',
+          lineHeight: 1
+        }}>
+          {formatarTempoTimer(tempoDecorrido)}
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', flexWrap: 'wrap' }}>
+          {!jornadaAtiva && tempoDecorrido === 0 && (
+            <button className="btn-primary" onClick={iniciarJornada} style={{ padding: '16px 36px', fontSize: '1.1rem', borderRadius: '50px', width: '100%', maxWidth: '250px', justifyContent: 'center' }}>
+              ▶ Iniciar Jornada
+            </button>
+          )}
+
+          {jornadaAtiva && (
+            <button onClick={pausarJornada} style={{ padding: '16px 36px', fontSize: '1.1rem', borderRadius: '50px', background: 'var(--yellow-dim)', color: 'var(--yellow)', border: '1px solid rgba(255, 217, 61, 0.3)', cursor: 'pointer', fontWeight: 600, width: '100%', maxWidth: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'var(--transition)' }}>
+              ⏸ Pausar
+            </button>
+          )}
+
+          {!jornadaAtiva && tempoDecorrido > 0 && (
+            <button onClick={retomarJornada} style={{ padding: '16px 36px', fontSize: '1.1rem', borderRadius: '50px', background: 'var(--green-dim)', color: 'var(--green)', border: '1px solid rgba(0, 212, 170, 0.3)', cursor: 'pointer', fontWeight: 600, width: '100%', maxWidth: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'var(--transition)' }}>
+              ▶ Retomar
+            </button>
+          )}
+
+          {(jornadaAtiva || tempoDecorrido > 0) && (
+            <button onClick={encerrarJornada} style={{ padding: '16px 36px', fontSize: '1.1rem', borderRadius: '50px', background: 'var(--red-dim)', color: 'var(--red)', border: '1px solid rgba(255, 107, 107, 0.3)', cursor: 'pointer', fontWeight: 600, width: '100%', maxWidth: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'var(--transition)' }}>
+              ⏹ Encerrar
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ═══════ 3. FORMULÁRIO DE REGISTRO DIÁRIO ═══════ */}
