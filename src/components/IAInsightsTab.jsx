@@ -121,7 +121,7 @@ export default function IAInsightsTab() {
       // Uber
       const mesStr = String(mesAtual + 1).padStart(2, '0');
       const prefixoData = `${anoAtual}-${mesStr}`;
-      const qUber = query(collection(db, 'usuarios', usuario.uid, 'registros_diarios'));
+      const qUber = query(collection(db, 'usuarios', usuario.uid, 'registros'));
       const snapUber = await getDocs(qUber);
       const ganhosMes = snapUber.docs
         .map(d => d.data())
