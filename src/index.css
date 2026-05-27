@@ -3625,24 +3625,35 @@ body {
 
 @media (max-width: 768px) {
   .metric-cards-grid {
-    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    grid-template-columns: repeat(2, 1fr);
     gap: 10px;
   }
   .metric-card {
-    padding: 12px;
+    flex-direction: column;
+    text-align: center;
+    padding: 16px 8px;
     gap: 8px;
   }
   .metric-card-icon {
-    width: 32px;
-    height: 32px;
-    font-size: 1rem;
+    width: 36px;
+    height: 36px;
+    font-size: 1.1rem;
     border-radius: 8px;
   }
+  .metric-card-body {
+    align-items: center;
+    width: 100%;
+  }
   .metric-card-label {
-    font-size: 0.65rem;
+    font-size: 0.7rem;
+    white-space: normal;
+    overflow: visible;
+    text-align: center;
   }
   .metric-card-value {
     font-size: 1rem;
+    white-space: nowrap;
+    overflow: visible;
   }
 }
 

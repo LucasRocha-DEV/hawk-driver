@@ -547,11 +547,11 @@ export default function GastosVariaveisTab() {
       </div>
       {/* CARD PRINCIPAL - TOTAL */}
       <div style={{ marginBottom: '16px' }}>
-        <div className="metric-card" style={{ padding: '24px', justifyContent: 'center', alignItems: 'center', gap: '16px' }}>
+        <div className="metric-card" style={{ padding: '24px', justifyContent: 'center', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
           <div className="metric-card-accent" style={{ background: 'linear-gradient(135deg, #ff6b6b, #ee5a24)' }} />
           <div className="metric-card-icon" style={{ width: '56px', height: '56px', fontSize: '1.8rem' }}>💸</div>
           <span className="metric-card-label" style={{ fontSize: '1.1rem', margin: 0 }}>Total do Mês:</span>
-          <span className="metric-card-value" style={{ fontSize: '2.2rem', color: '#ff6b6b' }}>{formatarMoeda(resumo.total)}</span>
+          <span className="metric-card-value" style={{ fontSize: 'clamp(1.5rem, 5vw, 2.2rem)', color: '#ff6b6b' }}>{formatarMoeda(resumo.total)}</span>
         </div>
       </div>
 
