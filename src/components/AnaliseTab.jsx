@@ -3,23 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { db } from '../firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-
-function formatarMoeda(valor) {
-  const v = Number(valor);
-  return (isNaN(v) ? 0 : v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
-
-function parsarHoras(horarioStr) {
-  if (!horarioStr || typeof horarioStr !== 'string') return 0;
-  const match = horarioStr.match(/(\d+)h(\d*)/);
-  if (match) {
-    const horas = parseInt(match[1], 10) || 0;
-    const minutos = parseInt(match[2], 10) || 0;
-    return horas + (minutos / 60);
-  }
-  const f = parseFloat(horarioStr);
-  return isNaN(f) ? 0 : f;
-}
+import { formatarMoeda, parsarHoras } from '../utils/helpers';
 
 function getDiaSemanaNome(diaIdx) {
   const nomes = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];

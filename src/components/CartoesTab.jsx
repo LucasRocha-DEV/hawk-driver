@@ -14,22 +14,10 @@ import {
   writeBatch,
   increment
 } from 'firebase/firestore';
+import { formatarMoeda, formatarData, MESES, nomeCaixinha } from '../utils/helpers';
+import NavegacaoMes from './NavegacaoMes';
 
 const BANDEIRAS = ['Mastercard', 'Visa', 'Elo', 'Amex', 'Hipercard', 'Outra'];
-const MESES = [
-  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-];
-
-function formatarMoeda(valor) {
-  return Number(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
-
-function formatarData(dataStr) {
-  if (!dataStr) return '';
-  const [ano, mes, dia] = dataStr.split('-');
-  return `${dia}/${mes}/${ano}`;
-}
 
 export default function CartoesTab() {
   const { usuario } = useAuth();
@@ -236,13 +224,12 @@ export default function CartoesTab() {
         batch.set(saldoRef, { ...descontosObj, atualizadoEm: serverTimestamp() }, { merge: true });
 
         Object.entries(descontosPorCaixinha).forEach(([caixinha, valor]) => {
-          let nomeCaixinha = caixinha.charAt(0).toUpperCase() + caixinha.slice(1);
-          if (caixinha === 'saldoConta') nomeCaixinha = 'Conta Principal';
+          let caixinhaNomeBonito = nomeCaixinha(caixinha);
           
           const transacaoRef = doc(collection(db, 'usuarios', usuario.uid, 'transacoes_patrimonio'));
           batch.set(transacaoRef, {
             caixinhaId: caixinha,
-            caixinhaNome: nomeCaixinha,
+            caixinhaNome: caixinhaNomeBonito,
             tipo: 'SAIDA',
             valor: valor,
             motivo: `Pgto Fatura ${cartaoSelecionado.nome} (${faturaRefAtual})`,

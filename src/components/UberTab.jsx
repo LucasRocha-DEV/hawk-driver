@@ -30,6 +30,7 @@ import {
   Cell,
   Legend
 } from 'recharts';
+import { formatarMoeda, formatarDataChave, formatarDataExibicao, parsarHoras, somarHoras, pad, nomeCaixinha } from '../utils/helpers';
 import ConsistenciaPanel from './ConsistenciaPanel';
 
 const FRASES_MOTIVACIONAIS = [
@@ -62,56 +63,12 @@ const CORES_PIZZA = {
 
 const CATEGORIAS_DISPONIVEIS = ['UberX', 'Comfort', 'Black', '99 (App)', 'Flash', 'Moto'];
 
-function formatarMoeda(valor) {
-  return (valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
-
-function formatarDataChave(data) {
-  const d = new Date(data);
-  const ano = d.getFullYear();
-  const mes = String(d.getMonth() + 1).padStart(2, '0');
-  const dia = String(d.getDate()).padStart(2, '0');
-  return `${ano}-${mes}-${dia}`;
-}
-
-function formatarDataExibicao(dataStr) {
-  const d = new Date(dataStr + 'T12:00:00');
-  return d.toLocaleDateString('pt-BR');
-}
-
-function parsarHoras(horarioStr) {
-  if (!horarioStr) return 0;
-  const match = horarioStr.match(/(\d+)h(\d*)/);
-  if (match) {
-    const horas = parseInt(match[1], 10) || 0;
-    const minutos = parseInt(match[2], 10) || 0;
-    return horas + minutos / 60;
-  }
-  return parseFloat(horarioStr) || 0;
-}
-
-function somarHoras(registros) {
-  let totalMinutos = 0;
-  registros.forEach(r => {
-    if (r.horarioRodado) {
-      const match = r.horarioRodado.match(/(\d+)h(\d*)/);
-      if (match) {
-        totalMinutos += (parseInt(match[1], 10) || 0) * 60 + (parseInt(match[2], 10) || 0);
-      }
-    }
-  });
-  const h = Math.floor(totalMinutos / 60);
-  const m = totalMinutos % 60;
-  return `${h}h${String(m).padStart(2, '0')}`;
-}
-
 export default function UberTab() {
   const { usuario } = useAuth();
 
   const [dataSelecionada, setDataSelecionada] = useState(new Date());
   const [mesAtivo, setMesAtivo] = useState(new Date());
   const [registrosMap, setRegistrosMap] = useState({});
-  const [retiradasList, setRetiradasList] = useState([]);
   const [fraseIndex, setFraseIndex] = useState(0);
   const [fraseVisivel, setFraseVisivel] = useState(true);
   const [saldos, setSaldos] = useState({});
@@ -208,7 +165,7 @@ export default function UberTab() {
     };
   }, [jornadaAtiva, jornadaInicioTimer, jornadaAcumulada]);
 
-  const pad = (num) => String(num).padStart(2, '0');
+  // pad importado de helpers
   
   const formatarTempoTimer = (ms) => {
     const totalSegundos = Math.floor(ms / 1000);
@@ -330,20 +287,7 @@ export default function UberTab() {
     return () => unsubscribe();
   }, [usuario]);
 
-  // ─── Firestore Listener: Retiradas ───
-  useEffect(() => {
-    if (!usuario) return;
-    const retiradasRef = collection(db, 'usuarios', usuario.uid, 'retiradas_nubank');
-    const q = query(retiradasRef, orderBy('criadoEm', 'desc'), limit(8));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const lista = [];
-      snapshot.forEach(docSnap => {
-        lista.push({ id: docSnap.id, ...docSnap.data() });
-      });
-      setRetiradasList(lista);
-    });
-    return () => unsubscribe();
-  }, [usuario]);
+  // Listener de retiradas_nubank removido (coleção abandonada)
 
   // ─── Populate form when date changes ───
   const dataChave = formatarDataChave(dataSelecionada);
@@ -486,19 +430,7 @@ export default function UberTab() {
     return itens.filter(i => i.value > 0);
   }, [brutoNum, liquidoNum, pctEmergencia, pctManutencao, pctEmpresa, pctLivre, pctContas]);
 
-  // ─── Total retiradas do mês ───
-  const totalRetiradasMes = useMemo(() => {
-    const agora = new Date();
-    const mesAtual = agora.getMonth();
-    const anoAtual = agora.getFullYear();
-    return retiradasList
-      .filter(r => {
-        if (!r.data) return false;
-        const d = new Date(r.data + 'T12:00:00');
-        return d.getMonth() === mesAtual && d.getFullYear() === anoAtual;
-      })
-      .reduce((soma, r) => soma + (r.valor || 0), 0);
-  }, [retiradasList]);
+  // totalRetiradasMes removido (retiradas_nubank descontinuado)
 
   // ─── Calendar tile class ───
   const tileClassName = useCallback(({ date, view }) => {
@@ -636,12 +568,7 @@ export default function UberTab() {
         if (valor > 0) {
           saldoUpdates[chaveId] = increment(valor);
           
-          let nomeBonito = chaveId;
-          if (chaveId === 'emergencia') nomeBonito = 'Reserva de Emergência';
-          if (chaveId === 'manutencao') nomeBonito = 'Manutenção';
-          if (chaveId === 'empresa') nomeBonito = 'Empresa';
-          if (chaveId === 'livre') nomeBonito = 'Livre / Lazer';
-          if (chaveId === 'contas') nomeBonito = 'Contas';
+          const nomeBonito = nomeCaixinha(chaveId);
 
           batchPromises.push(
             addDoc(transacoesRef, {

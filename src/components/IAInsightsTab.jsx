@@ -23,43 +23,8 @@ import {
   ResponsiveContainer,
   Cell
 } from 'recharts';
-
-const MESES = [
-  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-];
-
-function formatarMoeda(valor) {
-  return Number(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
-
-function despesaAtivaNoPeriodo(despesa, mes, ano) {
-  const mesInicio = despesa.mesInicio ?? despesa.mes ?? 0;
-  const anoInicio = despesa.anoInicio ?? despesa.ano ?? 2020;
-  const periodoAtual = ano * 12 + mes;
-  const periodoInicio = anoInicio * 12 + mesInicio;
-  if (periodoAtual < periodoInicio) return false;
-  if (despesa.recorrente === false) {
-    return periodoAtual === periodoInicio;
-  }
-  if (despesa.mesFim != null && despesa.anoFim != null && despesa.mesFim !== '' && despesa.anoFim !== '') {
-    const periodoFim = Number(despesa.anoFim) * 12 + Number(despesa.mesFim);
-    if (periodoAtual > periodoFim) return false;
-  }
-  return true;
-}
-
-function parsarHoras(horarioStr) {
-  if (!horarioStr) return 0;
-  const str = String(horarioStr);
-  const match = str.match(/(\d+)h(\d*)/);
-  if (match) {
-    const horas = parseInt(match[1], 10) || 0;
-    const minutos = parseInt(match[2], 10) || 0;
-    return horas + minutos / 60;
-  }
-  return parseFloat(str) || 0;
-}
+import { formatarMoeda, despesaAtivaNoPeriodo, parsarHoras, MESES } from '../utils/helpers';
+import NavegacaoMes from './NavegacaoMes';
 
 export default function IAInsightsTab() {
   const { usuario } = useAuth();
@@ -114,25 +79,8 @@ export default function IAInsightsTab() {
     setSavingKey(false);
   };
 
-  const mesAnterior = () => {
-    if (mesAtual === 0) {
-      setMesAtual(11);
-      setAnoAtual((a) => a - 1);
-    } else {
-      setMesAtual((m) => m - 1);
-    }
-    setInsightsData(null);
-  };
-
-  const mesSeguinte = () => {
-    if (mesAtual === 11) {
-      setMesAtual(0);
-      setAnoAtual((a) => a + 1);
-    } else {
-      setMesAtual((m) => m + 1);
-    }
-    setInsightsData(null);
-  };
+  // Navegação de mês feita pelo componente NavegacaoMes
+  const onMudouMes = () => setInsightsData(null);
 
   const gerarInsights = async () => {
     if (!apiKey) {
@@ -314,11 +262,13 @@ IMPORTANTE: Você DEVE retornar APENAS um objeto JSON válido, sem NENHUM texto 
         </p>
       </div>
 
-      <div className="month-navigation" style={{ marginBottom: '24px' }}>
-        <button className="month-nav-btn" onClick={mesAnterior}>‹</button>
-        <span className="month-nav-label">{MESES[mesAtual]} {anoAtual}</span>
-        <button className="month-nav-btn" onClick={mesSeguinte}>›</button>
-      </div>
+      <NavegacaoMes
+        mesAtual={mesAtual}
+        anoAtual={anoAtual}
+        setMesAtual={setMesAtual}
+        setAnoAtual={setAnoAtual}
+        onMudouMes={onMudouMes}
+      />
 
       {!apiKey || showConfig ? (
         <div className="card fade-in" style={{ borderTop: '4px solid #6c5ce7' }}>

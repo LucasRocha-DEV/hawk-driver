@@ -2,26 +2,15 @@ import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../firebase';
 import { collection, onSnapshot, doc, query, where } from 'firebase/firestore';
-
-function formatarMoeda(valor) {
-  return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
-
-function chaveMes(mes, ano) {
-  return `${ano}-${String(mes).padStart(2, '0')}`;
-}
-
-const MESES = [
-  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-];
+import { formatarMoeda, chaveMes, MESES, despesaAtivaNoPeriodo } from '../utils/helpers';
+import NavegacaoMes from './NavegacaoMes';
 
 export default function ContasTab() {
   const { usuario } = useAuth();
 
   const hoje = new Date();
-  const mesAtual = hoje.getMonth();
-  const anoAtual = hoje.getFullYear();
+  const [mesAtual, setMesAtual] = useState(hoje.getMonth());
+  const [anoAtual, setAnoAtual] = useState(hoje.getFullYear());
   const mesAtualKey = chaveMes(mesAtual, anoAtual);
 
   const [despesasFixas, setDespesasFixas] = useState([]);
@@ -36,21 +25,7 @@ export default function ContasTab() {
     const qFixas = collection(db, 'usuarios', usuario.uid, 'despesas_fixas');
     const unsubFixas = onSnapshot(qFixas, (snap) => {
       const lista = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      
-      // Filtra as que estão ativas neste mês
-      const ativas = lista.filter(d => {
-        const mesInicio = d.mesInicio ?? d.mes ?? 0;
-        const anoInicio = d.anoInicio ?? d.ano ?? 2020;
-        const periodoAtual = anoAtual * 12 + mesAtual;
-        const periodoInicio = anoInicio * 12 + mesInicio;
-        if (periodoAtual < periodoInicio) return false;
-        if (d.recorrente === false) return periodoAtual === periodoInicio;
-        if (d.mesFim != null && d.anoFim != null && d.mesFim !== '' && d.anoFim !== '') {
-          const periodoFim = Number(d.anoFim) * 12 + Number(d.mesFim);
-          if (periodoAtual > periodoFim) return false;
-        }
-        return true;
-      });
+      const ativas = lista.filter(d => despesaAtivaNoPeriodo(d, mesAtual, anoAtual));
       setDespesasFixas(ativas);
     });
 
@@ -96,7 +71,7 @@ export default function ContasTab() {
          if (item.pagoPorMes != null && typeof item.pagoPorMes === 'object') isPago = !!item.pagoPorMes[mesAtualKey];
          else isPago = item.pago === true && item.mes === mesAtual && item.ano === anoAtual;
       } else {
-         isPago = !!item.pago; // Gastos Variaveis tem boolean normal
+         isPago = !!item.pago;
       }
 
       const ehEmpresa = item.natureza === 'EMPRESA';
@@ -151,8 +126,16 @@ export default function ContasTab() {
         <p style={{ color: 'var(--text-secondary)' }}>Esta aba unifica todos os seus registros de Despesas Fixas e Variáveis.</p>
       </div>
 
+      {/* Navegação de Mês */}
+      <NavegacaoMes
+        mesAtual={mesAtual}
+        anoAtual={anoAtual}
+        setMesAtual={setMesAtual}
+        setAnoAtual={setAnoAtual}
+      />
+
       {/* VISOR PAZ DE ESPÍRITO (O Grande Visor) */}
-      <div className="section-card" style={{ textAlign: 'center', marginBottom: '24px', background: saldoLivreReal >= 0 ? 'linear-gradient(145deg, rgba(0,212,170,0.1), rgba(22,22,35,0.8))' : 'linear-gradient(145deg, rgba(255,107,107,0.1), rgba(22,22,35,0.8))' }}>
+      <div className="section-card" style={{ textAlign: 'center', marginBottom: '24px', marginTop: '24px', background: saldoLivreReal >= 0 ? 'linear-gradient(145deg, rgba(0,212,170,0.1), rgba(22,22,35,0.8))' : 'linear-gradient(145deg, rgba(255,107,107,0.1), rgba(22,22,35,0.8))' }}>
         <h3 style={{ margin: '0 0 12px 0', fontSize: '1rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>
           Se você pagar TUDO do mês de {MESES[mesAtual]} hoje, te sobrariam:
         </h3>

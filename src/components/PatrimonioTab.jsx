@@ -13,6 +13,7 @@ import {
   increment,
   limit
 } from 'firebase/firestore';
+import { formatarMoeda, formatarData } from '../utils/helpers';
 
 const CAIXINHAS = [
   { id: 'saldoRetidoApps', nome: 'A Receber dos Apps (Uber/99)', emoji: '⏳', cor: '#00cec9' },
@@ -22,16 +23,6 @@ const CAIXINHAS = [
   { id: 'livre', nome: 'Livre / Lazer', emoji: '💸', cor: '#00b894' },
   { id: 'contas', nome: 'Contas', emoji: '💳', cor: '#0984e3' }
 ];
-
-function formatarMoeda(valor) {
-  return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
-
-function formatarData(dataStr) {
-  if (!dataStr) return '';
-  const d = new Date(dataStr + 'T12:00:00');
-  return d.toLocaleDateString('pt-BR');
-}
 
 export default function PatrimonioTab() {
   const { usuario } = useAuth();

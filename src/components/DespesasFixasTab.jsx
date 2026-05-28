@@ -20,11 +20,11 @@ import {
   Tooltip,
   Legend
 } from 'recharts';
-
-const MESES = [
-  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-];
+import { formatarMoeda, chaveMes, despesaAtivaNoPeriodo, MESES, nomeCaixinha } from '../utils/helpers';
+import NavegacaoMes from './NavegacaoMes';
+import SeletorNatureza from './SeletorNatureza';
+import ModalPagamento from './ModalPagamento';
+import ModalCategorias from './ModalCategorias';
 
 const CATEGORIAS_DEFAULT = [
   { id: 'Aluguel / Financiamento', label: '🏠 Aluguel / Financ.', cor: '#ff6b6b' },
@@ -50,43 +50,14 @@ const formInicial = {
   recorrente: true,
   mesFim: '',
   anoFim: '',
-  natureza: 'PESSOAL', // EMPRESA ou PESSOAL
+  natureza: 'PESSOAL',
   isEsposa: false,
   cartaoId: ''
 };
 
-function formatarMoeda(valor) {
-  return Number(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
-
 function renderLabelPie({ name, percent }) {
   if (percent < 0.03) return null;
   return `${(percent * 100).toFixed(0)}%`;
-}
-
-function chaveMes(mes, ano) {
-  return `${ano}-${String(mes + 1).padStart(2, '0')}`;
-}
-
-function despesaAtivaNoPeriodo(despesa, mes, ano) {
-  const mesInicio = despesa.mesInicio ?? despesa.mes ?? 0;
-  const anoInicio = despesa.anoInicio ?? despesa.ano ?? 2020;
-
-  const periodoAtual = ano * 12 + mes;
-  const periodoInicio = anoInicio * 12 + mesInicio;
-
-  if (periodoAtual < periodoInicio) return false;
-
-  if (despesa.recorrente === false) {
-    return periodoAtual === periodoInicio;
-  }
-
-  if (despesa.mesFim != null && despesa.anoFim != null && despesa.mesFim !== '' && despesa.anoFim !== '') {
-    const periodoFim = Number(despesa.anoFim) * 12 + Number(despesa.mesFim);
-    if (periodoAtual > periodoFim) return false;
-  }
-
-  return true;
 }
 
 export default function DespesasFixasTab() {
@@ -106,14 +77,10 @@ export default function DespesasFixasTab() {
 
   // Estados Modal Pagamento
   const [pagamentoModal, setPagamentoModal] = useState(null);
-  const [caixinhaFonte, setCaixinhaFonte] = useState('');
-  const [processandoPagamento, setProcessandoPagamento] = useState(false);
 
   // Categorias Dinâmicas
   const [categorias, setCategorias] = useState(CATEGORIAS_DEFAULT);
   const [modalCategorias, setModalCategorias] = useState(false);
-  const [novaCategoriaNome, setNovaCategoriaNome] = useState('');
-  const [novaCategoriaCor, setNovaCategoriaCor] = useState('#a29bfe');
 
   // Mapa de cores dinâmico
   const mapaCores = useMemo(() => {
@@ -226,25 +193,7 @@ export default function DespesasFixasTab() {
     return Object.entries(mapa).map(([name, value]) => ({ name, value }));
   }, [despesasDoMes]);
 
-  function mesAnterior() {
-    if (mesAtual === 0) {
-      setMesAtual(11);
-      setAnoAtual((a) => a - 1);
-    } else {
-      setMesAtual((m) => m - 1);
-    }
-    cancelarEdicao();
-  }
-
-  function mesSeguinte() {
-    if (mesAtual === 11) {
-      setMesAtual(0);
-      setAnoAtual((a) => a + 1);
-    } else {
-      setMesAtual((m) => m + 1);
-    }
-    cancelarEdicao();
-  }
+  // Navegação de mês agora é feita pelo componente NavegacaoMes
 
   function handleChange(e) {
     const { name, value, type, checked } = e.target;
@@ -345,15 +294,12 @@ export default function DespesasFixasTab() {
   const acionarPagamento = (despesa) => {
     const jaPago = isPago(despesa);
     if (jaPago) {
-      // Se já está pago, permitir desfazer (NÃO devolve dinheiro automaticamente para evitar bugs, apenas muda status visual)
       if (window.confirm('Desfazer pagamento? Isso não devolverá o dinheiro automaticamente para a caixinha do Patrimônio, apenas marcará como pendente.')) {
          desfazerPagamento(despesa);
       }
       return;
     }
-    // Abrir Modal
     setPagamentoModal(despesa);
-    setCaixinhaFonte('');
   };
 
   const desfazerPagamento = async (despesa) => {
@@ -364,63 +310,45 @@ export default function DespesasFixasTab() {
     await updateDoc(docRef, { pagoPorMes: pagoPorMesAtualizado });
   };
 
-  const confirmarPagamento = async (e) => {
-    e.preventDefault();
-    if (!usuario || !pagamentoModal || !caixinhaFonte) return;
+  const confirmarPagamentoHandler = async (caixinhaFonte) => {
+    if (!usuario || !pagamentoModal) return;
+    const valorConta = Number(pagamentoModal.valor);
     
-    setProcessandoPagamento(true);
-    try {
-      const valorConta = Number(pagamentoModal.valor);
-      
-      // 1. Dar baixa na Despesa
-      const docRef = doc(db, 'usuarios', usuario.uid, 'despesas_fixas', pagamentoModal.id);
-      const chave = chaveMes(mesAtual, anoAtual);
-      const pagoPorMesAtualizado = { ...(pagamentoModal.pagoPorMes || {}) };
-      pagoPorMesAtualizado[chave] = true;
-      await updateDoc(docRef, { pagoPorMes: pagoPorMesAtualizado });
+    // 1. Dar baixa na Despesa
+    const docRef = doc(db, 'usuarios', usuario.uid, 'despesas_fixas', pagamentoModal.id);
+    const chave = chaveMes(mesAtual, anoAtual);
+    const pagoPorMesAtualizado = { ...(pagamentoModal.pagoPorMes || {}) };
+    pagoPorMesAtualizado[chave] = true;
+    await updateDoc(docRef, { pagoPorMes: pagoPorMesAtualizado });
 
-      // 2. Se for uma caixinha válida, subtrai
-      if (caixinhaFonte !== 'NENHUMA') {
-        await setDoc(doc(db, 'usuarios', usuario.uid, 'saldos', 'atual'), {
-          [caixinhaFonte]: increment(-valorConta),
-          atualizadoEm: serverTimestamp()
-        }, { merge: true });
+    // 2. Se for uma caixinha válida, subtrai
+    if (caixinhaFonte !== 'NENHUMA') {
+      await setDoc(doc(db, 'usuarios', usuario.uid, 'saldos', 'atual'), {
+        [caixinhaFonte]: increment(-valorConta),
+        atualizadoEm: serverTimestamp()
+      }, { merge: true });
 
-        let nomeCaixinhaFonte = caixinhaFonte.charAt(0).toUpperCase() + caixinhaFonte.slice(1);
-        if (caixinhaFonte === 'saldoConta') nomeCaixinhaFonte = 'Conta Principal';
-        
-        await addDoc(collection(db, 'usuarios', usuario.uid, 'transacoes_patrimonio'), {
-          caixinhaId: caixinhaFonte,
-          caixinhaNome: nomeCaixinhaFonte,
-          tipo: 'SAIDA',
-          valor: valorConta,
-          motivo: `Pgto Fixa: ${pagamentoModal.descricao}`,
-          data: new Date().toISOString().split('T')[0],
-          criadoEm: serverTimestamp()
-        });
-      }
-
-      setPagamentoModal(null);
-    } catch (err) {
-      console.error(err);
-      alert('Falha ao processar pagamento inteligente.');
+      await addDoc(collection(db, 'usuarios', usuario.uid, 'transacoes_patrimonio'), {
+        caixinhaId: caixinhaFonte,
+        caixinhaNome: nomeCaixinha(caixinhaFonte),
+        tipo: 'SAIDA',
+        valor: valorConta,
+        motivo: `Pgto Fixa: ${pagamentoModal.descricao}`,
+        data: new Date().toISOString().split('T')[0],
+        criadoEm: serverTimestamp()
+      });
     }
-    setProcessandoPagamento(false);
+
+    setPagamentoModal(null);
   };
 
   // ── Gerenciamento de Categorias ──
-  const adicionarCategoria = async (e) => {
-    e.preventDefault();
-    if (!usuario || !novaCategoriaNome.trim()) return;
+  const adicionarCategoria = async (nome, cor) => {
+    if (!usuario) return;
     try {
-      const novaCat = {
-        id: novaCategoriaNome.trim(),
-        label: novaCategoriaNome.trim(),
-        cor: novaCategoriaCor
-      };
+      const novaCat = { id: nome, label: nome, cor };
       const novaLista = [...categorias, novaCat];
       await setDoc(doc(db, 'usuarios', usuario.uid, 'configuracoes', 'categorias_fixas'), { lista: novaLista }, { merge: true });
-      setNovaCategoriaNome('');
     } catch (err) {
       console.error(err);
       alert('Erro ao adicionar categoria.');
@@ -454,11 +382,13 @@ export default function DespesasFixasTab() {
   return (
     <div className="tab-content">
       {/* ── Month Navigation ── */}
-      <div className="month-navigation">
-        <button className="month-nav-btn" onClick={mesAnterior} aria-label="Mês anterior">‹</button>
-        <h2 className="month-title">{MESES[mesAtual]} {anoAtual}</h2>
-        <button className="month-nav-btn" onClick={mesSeguinte} aria-label="Próximo mês">›</button>
-      </div>
+      <NavegacaoMes
+        mesAtual={mesAtual}
+        anoAtual={anoAtual}
+        setMesAtual={setMesAtual}
+        setAnoAtual={setAnoAtual}
+        onMudouMes={cancelarEdicao}
+      />
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
         <button className="btn-sm" onClick={() => setModalCategorias(true)} style={{ background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' }}>
@@ -593,30 +523,12 @@ export default function DespesasFixasTab() {
             </p>
           </div>
 
-          <div className="nature-selector-container">
-            <label className="form-label">Natureza do Gasto (De onde sai o dinheiro?)</label>
-            <div className="nature-buttons">
-              <div className={`nature-btn ${form.natureza === 'EMPRESA' ? 'active-empresa' : ''}`} onClick={() => setForm({...form, natureza: 'EMPRESA'})}>
-                <span className="nature-icon">🏢</span>
-                <span className="nature-label">Custo Empresa</span>
-              </div>
-              <div className={`nature-btn ${form.natureza === 'PESSOAL' ? 'active-pessoal' : ''}`} onClick={() => setForm({...form, natureza: 'PESSOAL'})}>
-                <span className="nature-icon">👤</span>
-                <span className="nature-label">Custo Pessoal</span>
-              </div>
-            </div>
-            
-            {form.natureza === 'PESSOAL' && (
-              <div className={`wife-toggle-container ${form.isEsposa ? 'active-wife' : ''}`} onClick={() => setForm({...form, isEsposa: !form.isEsposa})}>
-                <div className="wife-toggle-checkbox">
-                   {form.isEsposa ? '✅' : '⬜'}
-                </div>
-                <div className="wife-toggle-text">
-                   👩 Gasto da Esposa? <span className="wife-hint">(Identifica separadamente)</span>
-                </div>
-              </div>
-            )}
-          </div>
+          <SeletorNatureza
+            natureza={form.natureza}
+            setNatureza={(n) => setForm({...form, natureza: n})}
+            isEsposa={form.isEsposa}
+            setIsEsposa={(v) => setForm({...form, isEsposa: v})}
+          />
 
           <div className="form-group form-group-toggle">
             <label className="toggle-label">
@@ -755,91 +667,23 @@ export default function DespesasFixasTab() {
 
       {/* MODAL INTELIGENTE DE PAGAMENTO */}
       {pagamentoModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
-          <div className="section-card" style={{ width: '90%', maxWidth: '450px', background: '#16162a', padding: '32px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.1)' }}>
-            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.3rem', color: '#fff' }}>✅ Confirmar Pagamento</h3>
-            
-            <div style={{ background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '12px', marginBottom: '24px' }}>
-              <div style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>Pagando Despesa: <strong style={{ color: '#fff' }}>{pagamentoModal.descricao}</strong></div>
-              <div style={{ fontSize: '1.4rem', color: '#ff6b6b', fontWeight: 'bold', marginTop: '8px' }}>{formatarMoeda(pagamentoModal.valor)}</div>
-            </div>
-
-            <form onSubmit={confirmarPagamento}>
-              <div className="form-group">
-                <label className="form-label" style={{ fontSize: '1rem' }}>🧠 De onde esse dinheiro vai sair?</label>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '-6px' }}>O app vai dar baixa nesta conta e subtrair do saldo escolhido na aba Patrimônio.</p>
-                <select className="form-input" required value={caixinhaFonte} onChange={e => setCaixinhaFonte(e.target.value)} style={{ background: '#0a0a16', padding: '12px', fontSize: '1rem' }}>
-                  <option value="" disabled>Escolha a fonte pagadora...</option>
-                  <optgroup label="🏢 Caixinhas Empresa">
-                    <option value="empresa">🏢 Empresa (Saldo: {formatarMoeda(saldos.empresa)})</option>
-                    <option value="manutencao">🔧 Manutenção (Saldo: {formatarMoeda(saldos.manutencao)})</option>
-                  </optgroup>
-                  <optgroup label="👤 Caixinhas Pessoais">
-                    <option value="contas">💳 Contas (Saldo: {formatarMoeda(saldos.contas)})</option>
-                    <option value="emergencia">🚨 Reserva de Emergência (Saldo: {formatarMoeda(saldos.emergencia)})</option>
-                    <option value="livre">💸 Livre - Lazer (Saldo: {formatarMoeda(saldos.livre)})</option>
-                  </optgroup>
-                  <optgroup label="Outros">
-                    <option value="saldoConta">🏦 Conta Principal (Saldo: {formatarMoeda(saldos.saldoConta)})</option>
-                    <option value="NENHUMA">❌ Já paguei por fora (Apenas dar baixa aqui)</option>
-                  </optgroup>
-                </select>
-              </div>
-
-              <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-                <button type="submit" className="btn-primary" style={{ flex: 1, padding: '14px', fontSize: '1rem' }} disabled={processandoPagamento || !caixinhaFonte}>
-                  {processandoPagamento ? 'Processando...' : 'Confirmar Pagamento'}
-                </button>
-                <button type="button" className="btn-secondary" onClick={() => setPagamentoModal(null)} style={{ padding: '14px 24px' }}>Cancelar</button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <ModalPagamento
+          despesa={pagamentoModal}
+          saldos={saldos}
+          onConfirmar={confirmarPagamentoHandler}
+          onFechar={() => setPagamentoModal(null)}
+        />
       )}
 
       {/* MODAL GERENCIAR CATEGORIAS */}
       {modalCategorias && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
-          <div className="section-card" style={{ width: '90%', maxWidth: '450px', background: '#16162a', padding: '32px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.1)', maxHeight: '80vh', overflowY: 'auto' }}>
-            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.3rem', color: '#fff' }}>⚙️ Categorias (Fixas)</h3>
-            
-            <form onSubmit={adicionarCategoria} style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
-              <input 
-                type="color" 
-                value={novaCategoriaCor} 
-                onChange={e => setNovaCategoriaCor(e.target.value)} 
-                style={{ width: '40px', height: '40px', padding: '0', border: 'none', borderRadius: '8px', cursor: 'pointer', background: 'transparent' }} 
-                title="Cor da categoria"
-              />
-              <input 
-                type="text" 
-                value={novaCategoriaNome} 
-                onChange={e => setNovaCategoriaNome(e.target.value)} 
-                placeholder="Ex: 📱 Apps / Ferramentas" 
-                className="form-input" 
-                style={{ flex: 1, padding: '8px 12px' }} 
-                required 
-              />
-              <button type="submit" className="btn-primary" style={{ padding: '8px 16px' }}>➕</button>
-            </form>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {categorias.map(c => (
-                <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.03)', padding: '12px', borderRadius: '8px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: c.cor }}></div>
-                    <span style={{ color: '#fff' }}>{c.label}</span>
-                  </div>
-                  <button onClick={() => removerCategoria(c.id)} style={{ background: 'transparent', border: 'none', color: '#ff6b6b', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ marginTop: '24px', textAlign: 'center' }}>
-              <button onClick={() => setModalCategorias(false)} className="btn-secondary" style={{ width: '100%' }}>Fechar</button>
-            </div>
-          </div>
-        </div>
+        <ModalCategorias
+          titulo="Fixas"
+          categorias={categorias}
+          onAdicionar={adicionarCategoria}
+          onRemover={removerCategoria}
+          onFechar={() => setModalCategorias(false)}
+        />
       )}
     </div>
   );
