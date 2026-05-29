@@ -1,0 +1,25 @@
+rules_version = '2';
+
+// ════════════════════════════════════════════════════════
+// HAWK DRIVER — Firebase Firestore Security Rules
+// Produção: cada usuário acessa APENAS seus próprios dados.
+// ════════════════════════════════════════════════════════
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Regra principal: dados do usuário ──
+    // Toda a estrutura de dados fica em /usuarios/{userId}/...
+    // O usuário autenticado só pode ler e escrever no seu próprio namespace.
+    match /usuarios/{userId}/{document=**} {
+      allow read, write: if request.auth != null
+                         && request.auth.uid == userId;
+    }
+
+    // ── Bloqueio total de qualquer outra coleção ──
+    // Garante que nenhum dado fora do namespace do usuário seja acessível.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
