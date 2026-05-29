@@ -529,7 +529,7 @@ export default function GastosVariaveisTab() {
   };
 
   return (
-    <div className="tab-content">
+    <div className="max-w-4xl mx-auto px-3 md:px-6 py-4 space-y-6 animate-fade-in">
       <NavegacaoMes
         mesAtual={mesAtual}
         anoAtual={anoAtual}
@@ -537,61 +537,67 @@ export default function GastosVariaveisTab() {
         setAnoAtual={setAnoAtual}
       />
       
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
-        <button className="btn-sm" onClick={() => setModalCategorias(true)} style={{ background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' }}>
-          ⚙️ Gerenciar Categorias
+      <div className="flex justify-end mb-4">
+        <button 
+          className="px-4 py-2 text-xs font-bold rounded-xl border border-white/10 bg-white/5 text-hawk-text hover:bg-white/10 transition-colors flex items-center gap-2"
+          onClick={() => setModalCategorias(true)}
+        >
+          <span>⚙️</span> Gerenciar Categorias
         </button>
       </div>
 
       {/* CARD PRINCIPAL - TOTAL */}
-      <div style={{ marginBottom: '16px' }}>
-        <div className="metric-card" style={{ padding: '24px', justifyContent: 'center', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-          <div className="metric-card-accent" style={{ background: 'linear-gradient(135deg, #ff6b6b, #ee5a24)' }} />
-          <div className="metric-card-icon" style={{ width: '56px', height: '56px', fontSize: '1.8rem' }}>💸</div>
-          <span className="metric-card-label" style={{ fontSize: '1.1rem', margin: 0 }}>Total do Mês:</span>
-          <span className="metric-card-value" style={{ fontSize: 'clamp(1.5rem, 5vw, 2.2rem)', color: '#ff6b6b' }}>{formatarMoeda(resumo.total)}</span>
+      <div className="rounded-3xl border border-hawk-red/30 bg-gradient-to-br from-hawk-red/20 to-hawk-card/90 p-8 text-center shadow-card-hover relative overflow-hidden mb-6">
+        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 mix-blend-overlay"></div>
+        <div className="relative z-10 flex flex-col items-center gap-2">
+          <span className="text-sm font-semibold uppercase tracking-widest text-hawk-red mb-1">💸 Total do Mês:</span>
+          <span className="text-5xl md:text-6xl font-black tracking-tight text-white drop-shadow-[0_0_15px_rgba(255,107,107,0.5)]">
+            {formatarMoeda(resumo.total)}
+          </span>
         </div>
       </div>
 
       {/* CARDS SECUNDÁRIOS */}
-      <div className="metric-cards-grid" style={{ marginBottom: '24px' }}>
-        <div className="metric-card">
-          <div className="metric-card-accent" style={{ background: 'linear-gradient(135deg, #a29bfe, #6c5ce7)' }} />
-          <div className="metric-card-icon">🏢</div>
-          <div className="metric-card-body">
-            <span className="metric-card-label">Empresa</span>
-            <span className="metric-card-value" style={{ color: '#a29bfe' }}>{formatarMoeda(resumo.totalEmpresa)}</span>
-          </div>
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="rounded-2xl border border-glass-border bg-hawk-card p-5 shadow-card flex flex-col items-center text-center hover:border-hawk-purple/30 transition-colors group">
+          <div className="w-10 h-10 rounded-full bg-hawk-purple/10 flex items-center justify-center text-lg mb-2 group-hover:scale-110 transition-transform">🏢</div>
+          <span className="text-[10px] font-bold text-hawk-muted uppercase tracking-wide mb-1">Empresa</span>
+          <span className="text-lg font-bold text-hawk-purple">{formatarMoeda(resumo.totalEmpresa)}</span>
         </div>
-        <div className="metric-card">
-          <div className="metric-card-accent" style={{ background: 'linear-gradient(135deg, #74b9ff, #0984e3)' }} />
-          <div className="metric-card-icon">👤</div>
-          <div className="metric-card-body">
-            <span className="metric-card-label">Pessoal</span>
-            <span className="metric-card-value" style={{ color: '#74b9ff' }}>{formatarMoeda(resumo.totalPessoal)}</span>
-          </div>
+        <div className="rounded-2xl border border-glass-border bg-hawk-card p-5 shadow-card flex flex-col items-center text-center hover:border-hawk-blue/30 transition-colors group">
+          <div className="w-10 h-10 rounded-full bg-hawk-blue/10 flex items-center justify-center text-lg mb-2 group-hover:scale-110 transition-transform">👤</div>
+          <span className="text-[10px] font-bold text-hawk-muted uppercase tracking-wide mb-1">Pessoal</span>
+          <span className="text-lg font-bold text-hawk-blue">{formatarMoeda(resumo.totalPessoal)}</span>
         </div>
-        <div className="metric-card">
-          <div className="metric-card-accent" style={{ background: 'linear-gradient(135deg, #6c5ce7, #a29bfe)' }} />
-          <div className="metric-card-icon">📊</div>
-          <div className="metric-card-body">
-            <span className="metric-card-label">Quantidade</span>
-            <span className="metric-card-value" style={{ color: '#6c5ce7' }}>{resumo.quantidade}</span>
-          </div>
+        <div className="rounded-2xl border border-glass-border bg-hawk-card p-5 shadow-card flex flex-col items-center text-center hover:border-hawk-green/30 transition-colors group">
+          <div className="w-10 h-10 rounded-full bg-hawk-green/10 flex items-center justify-center text-lg mb-2 group-hover:scale-110 transition-transform">📊</div>
+          <span className="text-[10px] font-bold text-hawk-muted uppercase tracking-wide mb-1">Quantidade</span>
+          <span className="text-lg font-bold text-hawk-green">{resumo.quantidade}</span>
         </div>
       </div>
 
-      <div className="card">
-        <h3 className="card-title">{editandoId ? '✎ Editar Gasto' : '➕ Novo Gasto Variável'}</h3>
-        <form onSubmit={salvarGasto} className="form-grid">
-          <div className="form-group">
-            <label className="form-label">Descrição</label>
-            <input type="text" className="form-input" placeholder="Ex: Farmácia, Sapato..." value={descricao} onChange={e => setDescricao(e.target.value)} required />
+      <form className="rounded-2xl border border-glass-border bg-hawk-card p-6 shadow-card space-y-4" onSubmit={salvarGasto}>
+        <h3 className="text-lg font-bold text-hawk-text flex items-center gap-2 border-b border-white/5 pb-3">
+          {editandoId ? '✏️ Editar Gasto' : '➕ Novo Gasto Variável'}
+        </h3>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="md:col-span-2 space-y-1.5">
+            <label className="block text-xs font-bold text-hawk-muted uppercase tracking-widest">Descrição</label>
+            <input 
+              type="text" 
+              className="w-full bg-hawk-input border border-glass-border rounded-xl px-4 py-2.5 text-hawk-text text-sm focus:outline-none focus:ring-1 focus:border-hawk-purple/50 transition-colors" 
+              placeholder="Ex: Farmácia, Sapato..." 
+              value={descricao} onChange={e => setDescricao(e.target.value)} required 
+            />
           </div>
 
-          <div className="form-group">
-            <label className="form-label">Categoria</label>
-            <select className="form-input" value={categoria} onChange={e => setCategoria(e.target.value)} required>
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold text-hawk-muted uppercase tracking-widest">Categoria</label>
+            <select 
+              className="w-full bg-hawk-input border border-glass-border rounded-xl px-4 py-2.5 text-hawk-text text-sm focus:outline-none focus:ring-1 focus:border-hawk-purple/50 transition-colors appearance-none" 
+              value={categoria} onChange={e => setCategoria(e.target.value)} required
+            >
               <option value="">Selecione...</option>
               {categorias.map(cat => (
                 <option key={cat.id} value={cat.id}>{cat.label}</option>
@@ -599,16 +605,21 @@ export default function GastosVariaveisTab() {
             </select>
           </div>
 
-          <SeletorNatureza
-            natureza={natureza}
-            setNatureza={setNatureza}
-            isEsposa={isEsposa}
-            setIsEsposa={setIsEsposa}
-          />
+          <div className="md:col-span-2">
+            <SeletorNatureza
+              natureza={natureza}
+              setNatureza={setNatureza}
+              isEsposa={isEsposa}
+              setIsEsposa={setIsEsposa}
+            />
+          </div>
 
-          <div className="form-group">
-            <label className="form-label">💳 Método de Pagamento</label>
-            <select className="form-input" value={metodoPagamento} onChange={e => setMetodoPagamento(e.target.value)}>
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold text-hawk-muted uppercase tracking-widest">💳 Método de Pagamento</label>
+            <select 
+              className="w-full bg-hawk-input border border-glass-border rounded-xl px-4 py-2.5 text-hawk-text text-sm focus:outline-none focus:ring-1 focus:border-hawk-purple/50 transition-colors appearance-none" 
+              value={metodoPagamento} onChange={e => setMetodoPagamento(e.target.value)}
+            >
               <option value="">Selecione...</option>
               {METODOS_PAGAMENTO.map(m => (
                 <option key={m} value={m}>{m}</option>
@@ -617,31 +628,34 @@ export default function GastosVariaveisTab() {
           </div>
 
           {metodoPagamento === 'Cartão de Crédito' && (
-            <div className="form-group" style={{ gridColumn: '1 / -1', background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <label className="form-label" style={{ marginBottom: 0 }}>Qual Cartão?</label>
+            <div className="md:col-span-2 bg-white/5 p-4 rounded-xl border border-white/5 flex flex-col gap-3">
+              <label className="block text-xs font-bold text-hawk-text uppercase tracking-widest">Qual Cartão?</label>
               
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+              <div className="flex gap-3 items-center">
                 <input 
                   type="checkbox" 
                   id="cartaoTerceiro" 
                   checked={isCartaoTerceiro} 
                   onChange={(e) => setIsCartaoTerceiro(e.target.checked)} 
-                  style={{ width: '20px', height: '20px' }}
+                  className="w-5 h-5 accent-hawk-purple bg-hawk-input border-glass-border rounded focus:ring-hawk-purple/50"
                 />
-                <label htmlFor="cartaoTerceiro" style={{ fontSize: '0.9rem', cursor: 'pointer' }}>Usar cartão de terceiro (ex: Mãe, Cônjuge)</label>
+                <label htmlFor="cartaoTerceiro" className="text-sm cursor-pointer text-hawk-text">Usar cartão de terceiro (ex: Mãe, Cônjuge)</label>
               </div>
 
               {isCartaoTerceiro ? (
                 <input 
                   type="text" 
-                  className="form-input" 
+                  className="w-full bg-hawk-input border border-glass-border rounded-xl px-4 py-2.5 text-hawk-text text-sm focus:outline-none focus:ring-1 focus:border-hawk-purple/50 transition-colors" 
                   placeholder="Nome do dono do cartão (Ex: Cartão da Mãe)" 
                   value={nomeCartaoTerceiro} 
                   onChange={e => setNomeCartaoTerceiro(e.target.value)} 
                   required 
                 />
               ) : (
-                <select className="form-input" value={cartaoId} onChange={e => setCartaoId(e.target.value)} required={!isCartaoTerceiro}>
+                <select 
+                  className="w-full bg-hawk-input border border-glass-border rounded-xl px-4 py-2.5 text-hawk-text text-sm focus:outline-none focus:ring-1 focus:border-hawk-purple/50 transition-colors appearance-none" 
+                  value={cartaoId} onChange={e => setCartaoId(e.target.value)} required={!isCartaoTerceiro}
+                >
                   <option value="">Selecione um dos seus cartões...</option>
                   {cartoes.map(c => (
                     <option key={c.id} value={c.id}>{c.nome} ({c.bandeira})</option>
@@ -651,24 +665,37 @@ export default function GastosVariaveisTab() {
             </div>
           )}
 
-          <div className="form-group">
-            <label className="form-label">Data</label>
-            <input type="date" className="form-input" value={data} onChange={e => setData(e.target.value)} required />
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold text-hawk-muted uppercase tracking-widest">Data</label>
+            <input 
+              type="date" 
+              className="w-full bg-hawk-input border border-glass-border rounded-xl px-4 py-2.5 text-hawk-text text-sm focus:outline-none focus:ring-1 focus:border-hawk-purple/50 transition-colors" 
+              value={data} onChange={e => setData(e.target.value)} required 
+            />
           </div>
 
           {!editandoId && (
-            <div className="form-group form-group-toggle" style={{ gridColumn: '1 / -1' }}>
-              <label className="toggle-label">
-                <span className="toggle-text">
-                  💳 Compra Parcelada?
-                  <span className="toggle-hint">{parcelado ? 'Sim, criar parcelas' : 'Não, compra à vista'}</span>
-                </span>
-                <div className={`toggle-switch ${parcelado ? 'toggle-on' : ''}`} onClick={() => setParcelado(!parcelado)}>
-                  <div className="toggle-knob" />
+            <div className="md:col-span-2 bg-hawk-bg/30 p-4 rounded-xl border border-white/5">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex flex-col">
+                  <span className="font-bold text-sm text-hawk-text flex items-center gap-2">
+                    💳 Compra Parcelada?
+                  </span>
+                  <span className="text-xs text-hawk-muted mt-0.5">
+                    {parcelado ? 'Sim, criar parcelas' : 'Não, compra à vista'}
+                  </span>
                 </div>
-              </label>
+                <button
+                  type="button"
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${parcelado ? 'bg-hawk-purple' : 'bg-gray-600'}`}
+                  onClick={() => setParcelado(!parcelado)}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${parcelado ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+              
               {parcelado && (
-                <div style={{ background: 'rgba(255,107,107,0.1)', borderLeft: '4px solid #ff6b6b', padding: '12px', marginTop: '12px', borderRadius: '4px', fontSize: '0.85rem', color: '#ff6b6b' }}>
+                <div className="mt-3 bg-hawk-red/10 border-l-4 border-hawk-red p-3 rounded-r-lg text-xs text-hawk-red/90 font-medium">
                   <strong>Dica para compras antigas:</strong> Se você parcelou algo meses atrás (ex: comprou a TV em Janeiro) e está registrando agora, certifique-se de colocar a <strong>Data</strong> original da compra (ex: 15/01/2026). Assim, o aplicativo vai jogar as parcelas 1, 2, 3 nos meses passados corretamente nas faturas certas!
                 </div>
               )}
@@ -676,53 +703,69 @@ export default function GastosVariaveisTab() {
           )}
 
           {editandoId && (
-            <div className="form-group form-group-toggle" style={{ gridColumn: '1 / -1' }}>
-              <label className="toggle-label">
-                <span className="toggle-text">📋 Já é uma parcela em andamento?</span>
-                <div className={`toggle-switch ${parcelado ? 'toggle-on' : ''}`} onClick={() => setParcelado(!parcelado)}>
-                  <div className="toggle-knob" />
-                </div>
-              </label>
+            <div className="md:col-span-2 bg-hawk-bg/30 p-4 rounded-xl border border-white/5 flex items-center justify-between">
+              <span className="font-bold text-sm text-hawk-text">📋 Já é uma parcela em andamento?</span>
+              <button
+                type="button"
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${parcelado ? 'bg-hawk-purple' : 'bg-gray-600'}`}
+                onClick={() => setParcelado(!parcelado)}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${parcelado ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
             </div>
           )}
 
           {(parcelado && !editandoId) ? (
             <>
-              <div className="form-group">
-                <label className="form-label">💰 Valor de CADA Parcela (R$)</label>
-                <input type="number" className="form-input" step="0.01" min="0.01" placeholder="Ex: 50,00" value={valor} onChange={e => setValor(e.target.value)} required={parcelado} />
+              <div className="space-y-1.5 animate-fade-in">
+                <label className="block text-xs font-bold text-hawk-purple uppercase tracking-widest">💰 Valor de CADA Parcela (R$)</label>
+                <input 
+                  type="number" 
+                  className="w-full bg-hawk-input border border-hawk-purple/30 rounded-xl px-4 py-2.5 text-hawk-text text-sm focus:outline-none focus:ring-1 focus:border-hawk-purple/50 transition-colors" 
+                  step="0.01" min="0.01" placeholder="Ex: 50,00" value={valor} onChange={e => setValor(e.target.value)} required={parcelado} 
+                />
               </div>
-              <div className="form-group">
-                <label className="form-label">🔢 Quantidade de Parcelas</label>
-                <input type="number" className="form-input" min="2" max="48" placeholder="Ex: 10" value={totalParcelas} onChange={e => setTotalParcelas(e.target.value)} required={parcelado} />
+              <div className="space-y-1.5 animate-fade-in">
+                <label className="block text-xs font-bold text-hawk-purple uppercase tracking-widest">🔢 Quantidade de Parcelas</label>
+                <input 
+                  type="number" 
+                  className="w-full bg-hawk-input border border-hawk-purple/30 rounded-xl px-4 py-2.5 text-hawk-text text-sm focus:outline-none focus:ring-1 focus:border-hawk-purple/50 transition-colors" 
+                  min="2" max="48" placeholder="Ex: 10" value={totalParcelas} onChange={e => setTotalParcelas(e.target.value)} required={parcelado} 
+                />
               </div>
             </>
           ) : (
-            <div className="form-group">
-              <label className="form-label">Valor (R$)</label>
-              <input type="number" className="form-input" step="0.01" min="0.01" value={valor} onChange={e => setValor(e.target.value)} required />
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-hawk-muted uppercase tracking-widest">Valor (R$)</label>
+              <input 
+                type="number" 
+                className="w-full bg-hawk-input border border-glass-border rounded-xl px-4 py-2.5 text-hawk-text text-sm focus:outline-none focus:ring-1 focus:border-hawk-purple/50 transition-colors" 
+                step="0.01" min="0.01" value={valor} onChange={e => setValor(e.target.value)} required 
+              />
             </div>
           )}
 
-          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-            <label className="form-label">Observação (opcional)</label>
-            <input type="text" className="form-input" value={observacao} onChange={e => setObservacao(e.target.value)} />
+          <div className="md:col-span-2 space-y-1.5">
+            <label className="block text-xs font-bold text-hawk-muted uppercase tracking-widest">Observação (opcional)</label>
+            <input 
+              type="text" 
+              className="w-full bg-hawk-input border border-glass-border rounded-xl px-4 py-2.5 text-hawk-text text-sm focus:outline-none focus:ring-1 focus:border-hawk-purple/50 transition-colors" 
+              value={observacao} onChange={e => setObservacao(e.target.value)} 
+            />
           </div>
 
-          <div className="form-actions" style={{ gridColumn: '1 / -1' }}>
-            <button type="submit" className="btn-primary" disabled={salvando}>
+          <div className="md:col-span-2 flex gap-3 pt-4 border-t border-white/5">
+            <button type="submit" className="flex-1 font-bold rounded-xl px-6 py-3 text-sm text-hawk-bg bg-hawk-red hover:bg-hawk-red/90 transition-all duration-200 active:scale-[0.98]" disabled={salvando}>
               {salvando ? 'Salvando...' : editandoId ? '💾 Salvar Alteração' : parcelado ? `💳 Criar ${totalParcelas || '?'}x Parcelas` : '➕ Adicionar Gasto'}
             </button>
-            {editandoId && <button type="button" className="btn-secondary" onClick={limparFormulario}>Cancelar</button>}
+            {editandoId && <button type="button" className="px-6 py-3 font-bold text-sm text-hawk-text bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors" onClick={limparFormulario}>Cancelar</button>}
           </div>
-        </form>
-      </div>
-
-
+        </div>
+      </form>
 
       {dadosGrafico.length > 0 && (
-        <div className="card">
-          <h3 className="card-title">📊 Total por Categoria</h3>
+        <div className="rounded-2xl border border-glass-border bg-hawk-card p-6 shadow-card">
+          <h3 className="text-lg font-bold text-hawk-text mb-4 border-b border-white/5 pb-3">📊 Total por Categoria</h3>
           <div style={{ width: '100%', height: 340 }}>
             <ResponsiveContainer>
               <BarChart data={dadosGrafico} margin={{ top: 10, right: 20, left: 10, bottom: 60 }}>
@@ -739,56 +782,84 @@ export default function GastosVariaveisTab() {
         </div>
       )}
 
-      <div className="card">
-        <h3 className="card-title">📋 Gastos de {MESES[mesAtual]}</h3>
+      <div className="space-y-4">
+        <h3 className="text-xl font-bold text-hawk-text flex items-center gap-3 border-b border-white/5 pb-4">
+          📋 Gastos de {MESES[mesAtual]}
+        </h3>
+        
         {carregando ? (
-          <div className="loading-state">Carregando gastos...</div>
+          <div className="flex justify-center items-center py-12">
+            <div className="w-8 h-8 border-4 border-hawk-purple border-t-transparent rounded-full animate-spin"></div>
+          </div>
         ) : gastosFiltrados.length === 0 ? (
-          <div className="empty-state">Nenhum gasto registrado neste mês.</div>
+          <div className="text-center p-8 bg-hawk-card rounded-2xl border border-glass-border border-dashed">
+            <p className="text-hawk-muted text-sm italic">Nenhum gasto registrado neste mês.</p>
+          </div>
         ) : (
-          <div className="expense-list">
+          <div className="grid gap-3">
             {gastosFiltrados.map(gasto => {
               let tagNaturezaCor = gasto.natureza === 'EMPRESA' ? '#a29bfe' : '#74b9ff';
               let tagNaturezaIcone = gasto.natureza === 'EMPRESA' ? '🏢' : '👤';
               if (gasto.isEsposa) { tagNaturezaCor = '#fd79a8'; tagNaturezaIcone = '👩'; }
 
               return (
-                <div key={gasto.id} className={`expense-item glass-card${gasto.pago ? ' expense-paid' : ''}`}>
-                  <div className="expense-info">
-                    <div className="expense-header-row">
-                      <div className="expense-item-left" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <span className="expense-date">{formatarData(gasto.data)}</span>
-                        <span className="expense-descricao" style={{ textDecoration: gasto.pago ? 'line-through' : 'none' }}>
+                <div key={gasto.id} className={`flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 p-4 rounded-2xl border transition-all duration-300 ${gasto.pago ? 'bg-hawk-green/5 border-hawk-green/20' : 'bg-hawk-card border-glass-border hover:border-hawk-purple/30 shadow-card'}`}>
+                  <div className="flex-1 flex flex-col gap-2">
+                    <div className="flex items-start md:items-center justify-between md:justify-start gap-3">
+                      <div className="flex flex-col md:flex-row md:items-center gap-2">
+                        <span className="text-xs text-hawk-muted font-medium bg-black/20 px-2 py-0.5 rounded border border-white/5">{formatarData(gasto.data)}</span>
+                        <span className={`font-bold text-base flex items-center gap-2 ${gasto.pago ? 'text-hawk-muted line-through' : 'text-hawk-text'}`}>
                           {gasto.descricao}
-                          {gasto.parcelado && <span className="badge-parcela">{gasto.parcelaAtual}/{gasto.totalParcelas}</span>}
+                          {gasto.parcelado && <span className="bg-hawk-purple/20 text-hawk-purple border border-hawk-purple/30 px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wider leading-none">{gasto.parcelaAtual}/{gasto.totalParcelas}</span>}
                         </span>
-                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                          <span className="expense-categoria-badge" style={{ background: mapaCores[gasto.categoria] || '#b2bec3' }}>{mapaLabels[gasto.categoria] || gasto.categoria}</span>
-                          <span className="expense-categoria-badge" style={{ backgroundColor: tagNaturezaCor, color: '#111' }}>
-                            {tagNaturezaIcone} {gasto.natureza === 'EMPRESA' ? 'Empresa' : (gasto.isEsposa ? 'Esposa' : 'Pessoal')}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="expense-item-right" style={{ textAlign: 'right' }}>
-                        <span className="expense-valor" style={{ color: gasto.pago ? 'var(--text-secondary)' : '#ff6b6b' }}>{formatarMoeda(gasto.valor)}</span>
-                        {gasto.pago ? (
-                          <div style={{ fontSize: '0.8rem', color: '#00d4aa', fontWeight: 'bold' }}>✅ Pago</div>
-                        ) : (
-                          <div style={{ fontSize: '0.8rem', color: '#ff6b6b' }}>Pendente</div>
-                        )}
                       </div>
                     </div>
+                    
+                    <div className="flex flex-wrap gap-2 items-center">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold text-[#111]" style={{ background: mapaCores[gasto.categoria] || '#b2bec3' }}>
+                        {mapaLabels[gasto.categoria] || gasto.categoria}
+                      </span>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold text-[#111] flex items-center gap-1" style={{ backgroundColor: tagNaturezaCor }}>
+                        <span>{tagNaturezaIcone}</span> {gasto.natureza === 'EMPRESA' ? 'Empresa' : (gasto.isEsposa ? 'Esposa' : 'Pessoal')}
+                      </span>
+                    </div>
                   </div>
-                  <div className="expense-actions" style={{ marginTop: '12px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '12px' }}>
-                    <button
-                      className={`action-btn${gasto.pago ? ' action-undo' : ' action-check'}`}
-                      onClick={() => acionarPagamento(gasto)}
-                      title={gasto.pago ? 'Desfazer Pagamento' : 'Pagar com Automação'}
-                    >
-                      {gasto.pago ? '↩' : '✓'}
-                    </button>
-                    <button className="action-btn action-edit" onClick={() => iniciarEdicao(gasto)}>✎</button>
-                    <button className="action-btn action-delete" onClick={() => excluirGasto(gasto)}>✕</button>
+                  
+                  <div className="flex items-center justify-between md:justify-end gap-4 border-t md:border-t-0 md:border-l border-white/5 pt-3 md:pt-0 md:pl-4">
+                    <div className="flex flex-col items-end">
+                      <span className={`font-black tracking-tight text-lg ${gasto.pago ? 'text-hawk-muted' : 'text-hawk-red'}`}>
+                        {formatarMoeda(gasto.valor)}
+                      </span>
+                      {gasto.pago ? (
+                        <div className="text-[10px] text-hawk-green font-bold flex items-center gap-1"><span>✅</span> Pago</div>
+                      ) : (
+                        <div className="text-[10px] text-hawk-red font-medium">Pendente</div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        className={`w-10 h-10 rounded-xl font-bold text-sm transition-all active:scale-95 border flex items-center justify-center ${gasto.pago ? 'bg-hawk-input border-hawk-green/30 text-hawk-green hover:bg-hawk-green/10' : 'bg-hawk-green/10 border-hawk-green/30 text-hawk-green hover:bg-hawk-green/20'}`}
+                        onClick={() => acionarPagamento(gasto)}
+                        title={gasto.pago ? 'Desfazer Pagamento' : 'Pagar com Automação'}
+                      >
+                        {gasto.pago ? '↩' : '✓'}
+                      </button>
+                      <button 
+                        className="w-10 h-10 rounded-xl bg-white/5 text-hawk-blue border border-white/10 flex items-center justify-center transition-colors hover:bg-hawk-blue/10 active:scale-95" 
+                        onClick={() => iniciarEdicao(gasto)} 
+                        title="Editar"
+                      >
+                        ✎
+                      </button>
+                      <button 
+                        className="w-10 h-10 rounded-xl bg-white/5 text-hawk-red border border-white/10 flex items-center justify-center transition-colors hover:bg-hawk-red/10 active:scale-95" 
+                        onClick={() => excluirGasto(gasto)} 
+                        title="Excluir"
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </div>
                 </div>
               )
@@ -798,17 +869,39 @@ export default function GastosVariaveisTab() {
       </div>
 
       {confirmarExclusao && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }} onClick={() => setConfirmarExclusao(null)}>
-          <div style={{ width: '90%', maxWidth: '450px', background: '#16162a', padding: '32px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.1)' }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.3rem', color: '#fff' }}>🗑️ Excluir Parcela</h3>
-            <p style={{ fontSize: '1rem', color: 'var(--text-secondary)', marginBottom: '24px' }}>
-              <strong>{confirmarExclusao.descricao}</strong> — Parcela {confirmarExclusao.parcelaAtual}/{confirmarExclusao.totalParcelas}
+        <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex justify-center items-center p-4 animate-fade-in" onClick={() => setConfirmarExclusao(null)}>
+          <div className="bg-hawk-card w-full max-w-md rounded-2xl p-6 shadow-2xl border border-white/10" onClick={e => e.stopPropagation()}>
+            <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-white">
+              <span>🗑️</span> Excluir Parcela
+            </h3>
+            <p className="text-sm text-hawk-muted mb-6">
+              <strong className="text-white">{confirmarExclusao.descricao}</strong> — Parcela {confirmarExclusao.parcelaAtual}/{confirmarExclusao.totalParcelas}
             </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <button className="btn-secondary" onClick={async () => { await excluirGastoUnico(confirmarExclusao.id); setConfirmarExclusao(null); }}>Excluir Apenas Esta Parcela</button>
-              <button className="btn-secondary" style={{ color: '#ffd93d', borderColor: 'rgba(255,217,61,0.3)' }} onClick={async () => { await excluirParcelasRestantes(confirmarExclusao); setConfirmarExclusao(null); }}>Excluir Esta e as Seguintes</button>
-              <button className="btn-secondary" style={{ color: '#ff6b6b', borderColor: 'rgba(255,107,107,0.3)' }} onClick={async () => { await excluirTodasParcelas(confirmarExclusao.grupoParcelamento); setConfirmarExclusao(null); }}>Excluir Todas as Parcelas</button>
-              <button className="btn-primary" style={{ marginTop: '12px' }} onClick={() => setConfirmarExclusao(null)}>Cancelar</button>
+            <div className="flex flex-col gap-3">
+              <button 
+                className="w-full py-3 px-4 rounded-xl font-bold text-sm bg-white/5 border border-white/10 hover:bg-white/10 transition-colors text-hawk-text" 
+                onClick={async () => { await excluirGastoUnico(confirmarExclusao.id); setConfirmarExclusao(null); }}
+              >
+                Excluir Apenas Esta Parcela
+              </button>
+              <button 
+                className="w-full py-3 px-4 rounded-xl font-bold text-sm bg-hawk-blue/10 border border-hawk-blue/30 hover:bg-hawk-blue/20 transition-colors text-hawk-blue" 
+                onClick={async () => { await excluirParcelasRestantes(confirmarExclusao); setConfirmarExclusao(null); }}
+              >
+                Excluir Esta e as Seguintes
+              </button>
+              <button 
+                className="w-full py-3 px-4 rounded-xl font-bold text-sm bg-hawk-red/10 border border-hawk-red/30 hover:bg-hawk-red/20 transition-colors text-hawk-red" 
+                onClick={async () => { await excluirTodasParcelas(confirmarExclusao.grupoParcelamento); setConfirmarExclusao(null); }}
+              >
+                Excluir Todas as Parcelas
+              </button>
+              <button 
+                className="w-full py-3 px-4 rounded-xl font-bold text-sm bg-hawk-purple hover:bg-hawk-purple/90 transition-colors text-hawk-bg mt-2" 
+                onClick={() => setConfirmarExclusao(null)}
+              >
+                Cancelar
+              </button>
             </div>
           </div>
         </div>

@@ -328,242 +328,271 @@ export default function CartoesTab() {
   };
 
   return (
-    <div className="tab-content">
-      <div className="patrimonio-header">
-        <h2 className="patrimonio-titulo">💳 Cartões de Crédito</h2>
-        <p className="patrimonio-subtitulo">
+    <div className="max-w-4xl mx-auto px-3 md:px-6 py-4 space-y-6 animate-fade-in">
+      <div className="text-center mb-8">
+        <h2 className="text-3xl font-black text-hawk-text tracking-tight mb-2">💳 Cartões de Crédito</h2>
+        <p className="text-hawk-muted text-sm max-w-lg mx-auto">
           Gerencie seus limites, assinaturas fixas e faturas em um só lugar.
         </p>
       </div>
 
       {/* Cartões Horizontais */}
-      <div style={{ display: 'flex', gap: '12px', overflowX: 'auto', paddingBottom: '16px', marginBottom: '8px' }}>
+      <div className="flex gap-4 overflow-x-auto pb-4 mb-2 scrollbar-none snap-x snap-mandatory">
         {cartoes.map(cartao => (
           <div 
             key={cartao.id}
             onClick={() => setCartaoSelecionadoId(cartao.id)}
+            className={`min-w-[240px] snap-center p-5 rounded-2xl cursor-pointer transition-all duration-300 flex flex-col gap-4 border shadow-card ${cartaoSelecionadoId === cartao.id ? 'scale-100 opacity-100' : 'scale-95 opacity-70 hover:opacity-100'}`}
             style={{
-              minWidth: '220px',
-              padding: '16px',
-              borderRadius: '16px',
               background: cartaoSelecionadoId === cartao.id ? `linear-gradient(135deg, ${cartao.cor}, #111)` : 'rgba(255,255,255,0.03)',
               border: `1px solid ${cartaoSelecionadoId === cartao.id ? cartao.cor : 'rgba(255,255,255,0.1)'}`,
-              cursor: 'pointer',
-              transition: 'all 0.3s ease',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '12px'
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontWeight: 'bold', color: '#fff', fontSize: '1.1rem' }}>{cartao.nome}</span>
-              <span style={{ fontSize: '0.8rem', background: 'rgba(255,255,255,0.1)', padding: '4px 8px', borderRadius: '12px' }}>{cartao.bandeira}</span>
+            <div className="flex justify-between items-center">
+              <span className="font-bold text-white text-lg">{cartao.nome}</span>
+              <span className="text-xs bg-white/10 px-2 py-1 rounded-full font-medium">{cartao.bandeira}</span>
             </div>
             <div>
-              <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>Limite Total</div>
-              <div style={{ fontSize: '1.2rem', color: '#fff', fontWeight: 'bold' }}>{formatarMoeda(cartao.limiteTotal)}</div>
+              <div className="text-xs text-white/60 mb-0.5 font-medium uppercase tracking-wider">Limite Total</div>
+              <div className="text-2xl text-white font-black">{formatarMoeda(cartao.limiteTotal)}</div>
             </div>
           </div>
         ))}
         
         <div 
           onClick={() => { limparFormulario(); setModalCartao(true); }}
-          style={{
-            minWidth: '220px',
-            padding: '16px',
-            borderRadius: '16px',
-            background: 'rgba(255,255,255,0.02)',
-            border: '1px dashed rgba(255,255,255,0.2)',
-            cursor: 'pointer',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            alignItems: 'center',
-            gap: '8px',
-            color: 'var(--text-secondary)'
-          }}
+          className="min-w-[240px] snap-center p-5 rounded-2xl bg-white/5 border border-dashed border-white/20 cursor-pointer flex flex-col justify-center items-center gap-2 text-hawk-muted hover:text-white hover:bg-white/10 hover:border-white/40 transition-all shadow-card"
         >
-          <span style={{ fontSize: '2rem' }}>+</span>
-          <span>Adicionar Cartão</span>
+          <span className="text-3xl font-light mb-1">+</span>
+          <span className="font-bold text-sm">Adicionar Cartão</span>
         </div>
       </div>
 
       {cartaoSelecionado && (
-        <>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <div className="month-navigation" style={{ margin: 0 }}>
-              <button className="month-nav-btn" onClick={mesAnterior}>‹</button>
-              <span className="month-nav-label">Fatura {MESES[mesAtual]} {anoAtual}</span>
-              <button className="month-nav-btn" onClick={mesSeguinte}>›</button>
-            </div>
-            <div>
+        <div className="space-y-6 animate-fade-in">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+            <NavegacaoMes
+              mesAtual={mesAtual}
+              anoAtual={anoAtual}
+              setMesAtual={setMesAtual}
+              setAnoAtual={setAnoAtual}
+            />
+            <div className="flex flex-wrap justify-center gap-2">
               {pendenciasFatura.total > 0 && (
-                <button className="btn-primary" onClick={() => setPagamentoFaturaModal(true)} style={{ marginRight: '16px' }}>💳 Pagar Fatura</button>
+                <button className="px-4 py-2 font-bold text-sm text-hawk-bg bg-hawk-purple rounded-xl hover:bg-hawk-purple/90 transition-colors shadow-lg shadow-hawk-purple/20" onClick={() => setPagamentoFaturaModal(true)}>
+                  💳 Pagar Fatura
+                </button>
               )}
-              <button className="btn-sm" onClick={() => iniciarEdicao(cartaoSelecionado)} style={{ marginRight: '8px' }}>✎ Editar</button>
-              <button className="btn-sm" onClick={() => excluirCartao(cartaoSelecionado.id)} style={{ background: 'rgba(255,107,107,0.1)', color: '#ff6b6b' }}>✕ Excluir</button>
+              <button className="px-4 py-2 font-bold text-sm text-hawk-text bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors" onClick={() => iniciarEdicao(cartaoSelecionado)}>
+                ✎ Editar
+              </button>
+              <button className="px-4 py-2 font-bold text-sm text-hawk-red bg-hawk-red/10 border border-hawk-red/20 rounded-xl hover:bg-hawk-red/20 transition-colors" onClick={() => excluirCartao(cartaoSelecionado.id)}>
+                ✕ Excluir
+              </button>
             </div>
           </div>
 
           {/* Resumo da Fatura */}
-          <div className="card" style={{ borderTop: `4px solid ${cartaoSelecionado.cor}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+          <div className="rounded-3xl border border-glass-border bg-hawk-card p-6 md:p-8 shadow-card-hover relative overflow-hidden" style={{ borderTop: `4px solid ${cartaoSelecionado.cor}` }}>
+            <div className="absolute top-0 right-0 p-8 opacity-5">
+              <span className="text-9xl">💳</span>
+            </div>
+            
+            <div className="relative z-10 flex flex-col md:flex-row justify-between gap-6 mb-8">
               <div>
-                <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Total da Fatura</div>
-                <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#ff6b6b' }}>{formatarMoeda(totaisFatura.totalFatura)}</div>
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                  Vence em: <strong>Dia {cartaoSelecionado.diaVencimento}</strong> (Fecha dia {cartaoSelecionado.diaFechamento})
+                <div className="text-xs font-bold text-hawk-muted uppercase tracking-widest mb-1">Total da Fatura</div>
+                <div className="text-4xl md:text-5xl font-black text-hawk-red drop-shadow-[0_0_10px_rgba(255,107,107,0.3)]">{formatarMoeda(totaisFatura.totalFatura)}</div>
+                <div className="text-xs text-hawk-muted mt-2 font-medium">
+                  Vence em: <strong className="text-hawk-text">Dia {cartaoSelecionado.diaVencimento}</strong> (Fecha dia {cartaoSelecionado.diaFechamento})
                 </div>
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Limite Disponível</div>
-                <div style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#00d4aa' }}>{formatarMoeda(totaisFatura.limiteDisponivel)}</div>
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '4px' }}>de {formatarMoeda(totaisFatura.limite)}</div>
+              <div className="md:text-right">
+                <div className="text-xs font-bold text-hawk-muted uppercase tracking-widest mb-1">Limite Disponível</div>
+                <div className="text-2xl md:text-3xl font-bold text-hawk-green">{formatarMoeda(totaisFatura.limiteDisponivel)}</div>
+                <div className="text-xs text-hawk-muted mt-1">de {formatarMoeda(totaisFatura.limite)}</div>
               </div>
             </div>
 
             {/* Barra de Uso */}
-            <div style={{ width: '100%', height: '12px', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', overflow: 'hidden', marginBottom: '8px' }}>
-              <div style={{ width: `${Math.min(100, totaisFatura.percentualUso)}%`, height: '100%', background: totaisFatura.percentualUso > 90 ? '#ff6b6b' : cartaoSelecionado.cor, transition: 'width 0.5s' }} />
-            </div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
-              {totaisFatura.percentualUso.toFixed(1)}% do limite utilizado
+            <div className="relative z-10">
+              <div className="w-full h-3 bg-white/5 rounded-full overflow-hidden mb-2">
+                <div 
+                  className="h-full rounded-full transition-all duration-1000 ease-out" 
+                  style={{ width: `${Math.min(100, totaisFatura.percentualUso)}%`, background: totaisFatura.percentualUso > 90 ? '#ff6b6b' : cartaoSelecionado.cor, boxShadow: `0 0 10px ${totaisFatura.percentualUso > 90 ? 'rgba(255,107,107,0.5)' : 'rgba(255,255,255,0.2)'}` }} 
+                />
+              </div>
+              <div className="text-xs font-bold text-hawk-muted text-center tracking-wide">
+                {totaisFatura.percentualUso.toFixed(1)}% do limite utilizado
+              </div>
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' }}>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Fixas / Assinaturas */}
-            <div className="card">
-              <h3 className="card-title">🔄 Assinaturas & Recorrentes</h3>
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
-                Gerenciado na aba de Despesas Fixas.
-              </p>
-              {despesasFixas.length === 0 ? (
-                <div className="empty-state">Nenhuma assinatura vinculada.</div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {despesasFixas.map(fixa => {
-                    const pago = fixa.pagoPorMes && fixa.pagoPorMes[faturaRefAtual];
-                    return (
-                      <div key={fixa.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
-                        <div>
-                          <div style={{ fontWeight: 'bold', textDecoration: pago ? 'line-through' : 'none' }}>
-                            {fixa.descricao}
+            <div className="rounded-2xl border border-glass-border bg-hawk-card p-6 shadow-card flex flex-col">
+              <h3 className="text-lg font-bold text-hawk-text mb-1">🔄 Assinaturas & Recorrentes</h3>
+              <p className="text-xs text-hawk-muted mb-4 pb-4 border-b border-white/5">Gerenciado na aba de Despesas Fixas.</p>
+              
+              <div className="flex-1">
+                {despesasFixas.length === 0 ? (
+                  <div className="text-center p-6 bg-white/5 rounded-xl border border-dashed border-white/10 text-hawk-muted text-sm italic">Nenhuma assinatura vinculada.</div>
+                ) : (
+                  <div className="space-y-3">
+                    {despesasFixas.map(fixa => {
+                      const pago = fixa.pagoPorMes && fixa.pagoPorMes[faturaRefAtual];
+                      return (
+                        <div key={fixa.id} className="flex justify-between items-center p-3.5 bg-hawk-bg/50 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
+                          <div className="flex flex-col gap-1">
+                            <span className={`font-bold text-sm ${pago ? 'text-hawk-muted line-through' : 'text-hawk-text'}`}>
+                              {fixa.descricao}
+                            </span>
+                            <span className="text-[10px] text-hawk-muted font-medium flex items-center gap-2">
+                              <span className="bg-white/5 px-2 py-0.5 rounded text-hawk-text">{fixa.categoria}</span>
+                              {pago && <span className="text-hawk-green flex items-center gap-1"><span>✅</span> Pago</span>}
+                            </span>
                           </div>
-                          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                            {fixa.categoria}
-                            {pago && <span style={{ marginLeft: '8px', color: '#00d4aa' }}>✅ Pago</span>}
-                          </div>
+                          <span className={`font-black tracking-tight ${pago ? 'text-hawk-muted' : 'text-hawk-red'}`}>
+                            {formatarMoeda(fixa.valor)}
+                          </span>
                         </div>
-                        <div style={{ fontWeight: 'bold', color: pago ? 'var(--text-secondary)' : '#ff6b6b' }}>
-                          {formatarMoeda(fixa.valor)}
-                        </div>
-                      </div>
-                    );
-                  })}
-                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
-                    <span>Total Assinaturas</span>
-                    <span>{formatarMoeda(totaisFatura.totalFixas)}</span>
+                      );
+                    })}
                   </div>
+                )}
+              </div>
+              
+              {despesasFixas.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-white/10 flex justify-between items-center font-black">
+                  <span className="text-hawk-muted uppercase tracking-widest text-xs">Total Assinaturas</span>
+                  <span className="text-hawk-text text-lg">{formatarMoeda(totaisFatura.totalFixas)}</span>
                 </div>
               )}
             </div>
 
             {/* Variáveis */}
-            <div className="card">
-              <h3 className="card-title">🛒 Compras da Fatura</h3>
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
-                Adicionado na aba de Gastos Variáveis.
-              </p>
-              {despesasVariaveis.length === 0 ? (
-                <div className="empty-state">Nenhuma compra nesta fatura.</div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {despesasVariaveis.map(compra => {
-                    const pago = compra.pago;
-                    return (
-                      <div key={compra.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
-                        <div>
-                          <div style={{ fontWeight: 'bold', textDecoration: pago ? 'line-through' : 'none' }}>
-                            {compra.descricao} {compra.parcelado && `(${compra.parcelaAtual}/${compra.totalParcelas})`}
+            <div className="rounded-2xl border border-glass-border bg-hawk-card p-6 shadow-card flex flex-col">
+              <h3 className="text-lg font-bold text-hawk-text mb-1">🛒 Compras da Fatura</h3>
+              <p className="text-xs text-hawk-muted mb-4 pb-4 border-b border-white/5">Adicionado na aba de Gastos Variáveis.</p>
+              
+              <div className="flex-1">
+                {despesasVariaveis.length === 0 ? (
+                  <div className="text-center p-6 bg-white/5 rounded-xl border border-dashed border-white/10 text-hawk-muted text-sm italic">Nenhuma compra nesta fatura.</div>
+                ) : (
+                  <div className="space-y-3">
+                    {despesasVariaveis.map(compra => {
+                      const pago = compra.pago;
+                      return (
+                        <div key={compra.id} className="flex justify-between items-center p-3.5 bg-hawk-bg/50 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
+                          <div className="flex flex-col gap-1">
+                            <span className={`font-bold text-sm flex items-center gap-2 ${pago ? 'text-hawk-muted line-through' : 'text-hawk-text'}`}>
+                              {compra.descricao} 
+                              {compra.parcelado && <span className="bg-hawk-purple/20 text-hawk-purple border border-hawk-purple/30 px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wider leading-none">{compra.parcelaAtual}/{compra.totalParcelas}</span>}
+                            </span>
+                            <span className="text-[10px] text-hawk-muted font-medium flex items-center gap-2 flex-wrap">
+                              <span className="bg-black/20 px-2 py-0.5 rounded border border-white/5">{formatarData(compra.data)}</span>
+                              <span className="bg-white/5 px-2 py-0.5 rounded text-hawk-text">{compra.categoria}</span>
+                              {pago && <span className="text-hawk-green flex items-center gap-1"><span>✅</span> Pago</span>}
+                            </span>
                           </div>
-                          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                            {formatarData(compra.data)} • {compra.categoria}
-                            {pago && <span style={{ marginLeft: '8px', color: '#00d4aa' }}>✅ Pago</span>}
-                          </div>
+                          <span className={`font-black tracking-tight ${pago ? 'text-hawk-muted' : 'text-hawk-red'}`}>
+                            {formatarMoeda(compra.valor)}
+                          </span>
                         </div>
-                        <div style={{ fontWeight: 'bold', color: pago ? 'var(--text-secondary)' : '#ff6b6b' }}>
-                          {formatarMoeda(compra.valor)}
-                        </div>
-                      </div>
-                    );
-                  })}
-                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
-                    <span>Total Compras</span>
-                    <span>{formatarMoeda(totaisFatura.totalVariaveis)}</span>
+                      );
+                    })}
                   </div>
+                )}
+              </div>
+
+              {despesasVariaveis.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-white/10 flex justify-between items-center font-black">
+                  <span className="text-hawk-muted uppercase tracking-widest text-xs">Total Compras</span>
+                  <span className="text-hawk-text text-lg">{formatarMoeda(totaisFatura.totalVariaveis)}</span>
                 </div>
               )}
             </div>
           </div>
-        </>
+        </div>
       )}
 
       {/* Modal CRUD Cartão */}
       {modalCartao && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
-          <div className="card" style={{ width: '90%', maxWidth: '450px', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 className="card-title">{editandoId ? '✎ Editar Cartão' : '➕ Novo Cartão'}</h3>
-            <form onSubmit={salvarCartao} className="form-grid">
-              
-              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                <label className="form-label">Nome do Cartão (Apelido)</label>
-                <input type="text" className="form-input" required value={nome} onChange={e => setNome(e.target.value)} placeholder="Ex: Nubank, Inter..." />
+        <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex justify-center items-center p-4 animate-fade-in">
+          <div className="bg-hawk-card w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl p-6 shadow-2xl border border-white/10">
+            <h3 className="text-xl font-bold text-hawk-text mb-6 border-b border-white/5 pb-4">
+              {editandoId ? '✏️ Editar Cartão' : '➕ Novo Cartão'}
+            </h3>
+            
+            <form onSubmit={salvarCartao} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-hawk-muted uppercase tracking-widest">Nome do Cartão (Apelido)</label>
+                <input 
+                  type="text" 
+                  className="w-full bg-hawk-input border border-glass-border rounded-xl px-4 py-2.5 text-hawk-text text-sm focus:outline-none focus:ring-1 focus:border-hawk-purple/50 transition-colors" 
+                  required value={nome} onChange={e => setNome(e.target.value)} placeholder="Ex: Nubank, Inter..." 
+                />
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Bandeira</label>
-                <select className="form-input" required value={bandeira} onChange={e => setBandeira(e.target.value)}>
-                  {BANDEIRAS.map(b => <option key={b} value={b}>{b}</option>)}
-                </select>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-hawk-muted uppercase tracking-widest">Bandeira</label>
+                  <select 
+                    className="w-full bg-hawk-input border border-glass-border rounded-xl px-4 py-2.5 text-hawk-text text-sm focus:outline-none focus:ring-1 focus:border-hawk-purple/50 transition-colors appearance-none" 
+                    required value={bandeira} onChange={e => setBandeira(e.target.value)}
+                  >
+                    {BANDEIRAS.map(b => <option key={b} value={b}>{b}</option>)}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-hawk-muted uppercase tracking-widest">Limite Total (R$)</label>
+                  <input 
+                    type="number" step="0.01" 
+                    className="w-full bg-hawk-input border border-glass-border rounded-xl px-4 py-2.5 text-hawk-text text-sm focus:outline-none focus:ring-1 focus:border-hawk-purple/50 transition-colors" 
+                    required value={limiteTotal} onChange={e => setLimiteTotal(e.target.value)} 
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-hawk-muted uppercase tracking-widest">Dia de Fechamento</label>
+                  <input 
+                    type="number" min="1" max="31" 
+                    className="w-full bg-hawk-input border border-glass-border rounded-xl px-4 py-2.5 text-hawk-text text-sm focus:outline-none focus:ring-1 focus:border-hawk-purple/50 transition-colors" 
+                    required value={diaFechamento} onChange={e => setDiaFechamento(e.target.value)} placeholder="Ex: 17" 
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-hawk-muted uppercase tracking-widest">Dia de Vencimento</label>
+                  <input 
+                    type="number" min="1" max="31" 
+                    className="w-full bg-hawk-input border border-glass-border rounded-xl px-4 py-2.5 text-hawk-text text-sm focus:outline-none focus:ring-1 focus:border-hawk-purple/50 transition-colors" 
+                    required value={diaVencimento} onChange={e => setDiaVencimento(e.target.value)} placeholder="Ex: 24" 
+                  />
+                </div>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Limite Total (R$)</label>
-                <input type="number" step="0.01" className="form-input" required value={limiteTotal} onChange={e => setLimiteTotal(e.target.value)} />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Dia de Fechamento</label>
-                <input type="number" min="1" max="31" className="form-input" required value={diaFechamento} onChange={e => setDiaFechamento(e.target.value)} placeholder="Ex: 17" />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Dia de Vencimento</label>
-                <input type="number" min="1" max="31" className="form-input" required value={diaVencimento} onChange={e => setDiaVencimento(e.target.value)} placeholder="Ex: 24" />
-              </div>
-
-              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                <label className="form-label">Cor de Identificação</label>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <div className="space-y-2 pt-2">
+                <label className="block text-xs font-bold text-hawk-muted uppercase tracking-widest">Cor de Identificação</label>
+                <div className="flex flex-wrap gap-3">
                   {['#8A05BE', '#FF7A00', '#202020', '#1A73E8', '#00D4AA', '#FF6B6B'].map(c => (
                     <div 
                       key={c}
                       onClick={() => setCor(c)}
-                      style={{ 
-                        width: '36px', height: '36px', borderRadius: '50%', background: c,
-                        cursor: 'pointer', border: cor === c ? '3px solid #fff' : 'none'
-                      }}
+                      className={`w-10 h-10 rounded-full cursor-pointer transition-transform ${cor === c ? 'scale-110 shadow-[0_0_0_2px_#fff] z-10' : 'hover:scale-110 opacity-70 hover:opacity-100'}`}
+                      style={{ background: c }}
                     />
                   ))}
                 </div>
               </div>
 
-              <div className="form-actions" style={{ gridColumn: '1 / -1', marginTop: '16px' }}>
-                <button type="submit" className="btn-primary" disabled={salvando}>
+              <div className="flex gap-3 pt-6 border-t border-white/5">
+                <button type="submit" className="flex-1 font-bold rounded-xl px-6 py-3 text-sm text-hawk-bg bg-hawk-purple hover:bg-hawk-purple/90 transition-all duration-200 active:scale-[0.98]" disabled={salvando}>
                   {salvando ? 'Salvando...' : 'Salvar Cartão'}
                 </button>
-                <button type="button" className="btn-secondary" onClick={() => setModalCartao(false)}>Cancelar</button>
+                <button type="button" className="px-6 py-3 font-bold text-sm text-hawk-text bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors" onClick={() => setModalCartao(false)}>
+                  Cancelar
+                </button>
               </div>
             </form>
           </div>
@@ -572,73 +601,82 @@ export default function CartoesTab() {
 
       {/* Modal Pagamento Fatura */}
       {pagamentoFaturaModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
-          <div className="section-card" style={{ width: '90%', maxWidth: '450px', background: '#16162a', padding: '32px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.1)' }}>
-            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.3rem', color: '#fff' }}>💳 Pagar Fatura</h3>
+        <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex justify-center items-center p-4 animate-fade-in">
+          <div className="bg-hawk-card w-full max-w-md rounded-2xl p-6 md:p-8 shadow-2xl border border-white/10 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+              <span>💳</span> Pagar Fatura
+            </h3>
             
-            <div style={{ background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '12px', marginBottom: '24px' }}>
-              <div style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>Fatura {cartaoSelecionado?.nome} ({MESES[mesAtual]} {anoAtual})</div>
-              <div style={{ fontSize: '1.4rem', color: '#ff6b6b', fontWeight: 'bold', marginTop: '8px' }}>{formatarMoeda(pendenciasFatura.total)} pendentes</div>
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '8px' }}>
-                Será dado baixa em {pendenciasFatura.variaveis.length} compras variáveis e {pendenciasFatura.fixas.length} assinaturas.
+            <div className="bg-white/5 border border-white/10 p-5 rounded-xl mb-6 text-center">
+              <div className="text-sm font-medium text-hawk-muted mb-1">Fatura {cartaoSelecionado?.nome} ({MESES[mesAtual]} {anoAtual})</div>
+              <div className="text-3xl font-black text-hawk-red drop-shadow-[0_0_10px_rgba(255,107,107,0.3)]">{formatarMoeda(pendenciasFatura.total)}</div>
+              <div className="text-xs text-hawk-red uppercase tracking-wider font-bold mt-1">Pendentes</div>
+              <p className="text-[10px] text-hawk-muted mt-3 pt-3 border-t border-white/5">
+                Será dado baixa em {pendenciasFatura.variaveis.length} compras e {pendenciasFatura.fixas.length} assinaturas.
               </p>
             </div>
 
-            <form onSubmit={pagarFaturaTotal}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <form onSubmit={pagarFaturaTotal} className="space-y-4">
+              <div className="space-y-4">
                 {pendenciasFatura.totalEmpresa > 0 && (
-                  <div className="form-group" style={{ margin: 0, padding: '12px', background: 'rgba(9, 132, 227, 0.1)', borderLeft: '4px solid #0984e3', borderRadius: '8px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <span style={{ fontWeight: 'bold', color: '#0984e3' }}>🏢 Parte da Empresa</span>
-                      <span style={{ fontWeight: 'bold' }}>{formatarMoeda(pendenciasFatura.totalEmpresa)}</span>
+                  <div className="bg-hawk-blue/5 border-l-4 border-hawk-blue p-4 rounded-r-xl">
+                    <div className="flex justify-between items-center mb-3">
+                      <span className="font-bold text-hawk-blue text-sm flex items-center gap-2"><span>🏢</span> Empresa</span>
+                      <span className="font-black text-hawk-blue">{formatarMoeda(pendenciasFatura.totalEmpresa)}</span>
                     </div>
-                    <select className="form-input" required value={fonteEmpresa} onChange={e => setFonteEmpresa(e.target.value)} style={{ background: '#0a0a16', fontSize: '0.9rem' }}>
-                      <option value="" disabled>Escolha a caixinha...</option>
+                    <select className="w-full bg-hawk-bg border border-hawk-blue/20 rounded-xl px-3 py-2.5 text-hawk-text text-xs focus:outline-none focus:ring-1 focus:border-hawk-blue appearance-none" required value={fonteEmpresa} onChange={e => setFonteEmpresa(e.target.value)}>
+                      <option value="" disabled>De onde vai sair o dinheiro?</option>
                       <option value="empresa">🏢 Empresa (Saldo: {formatarMoeda(saldos.empresa)})</option>
                       <option value="manutencao">🔧 Manutenção (Saldo: {formatarMoeda(saldos.manutencao)})</option>
                       <option value="saldoConta">🏦 Conta Principal (Saldo: {formatarMoeda(saldos.saldoConta)})</option>
-                      <option value="NENHUMA">❌ Já pago / Não descontar</option>
+                      <option value="NENHUMA">❌ Já paguei por fora / Não descontar</option>
                     </select>
                   </div>
                 )}
 
                 {pendenciasFatura.totalPessoal > 0 && (
-                  <div className="form-group" style={{ margin: 0, padding: '12px', background: 'rgba(255, 107, 107, 0.1)', borderLeft: '4px solid #ff6b6b', borderRadius: '8px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <span style={{ fontWeight: 'bold', color: '#ff6b6b' }}>👤 Parte Pessoal</span>
-                      <span style={{ fontWeight: 'bold' }}>{formatarMoeda(pendenciasFatura.totalPessoal)}</span>
+                  <div className="bg-hawk-red/5 border-l-4 border-hawk-red p-4 rounded-r-xl">
+                    <div className="flex justify-between items-center mb-3">
+                      <span className="font-bold text-hawk-red text-sm flex items-center gap-2"><span>👤</span> Pessoal</span>
+                      <span className="font-black text-hawk-red">{formatarMoeda(pendenciasFatura.totalPessoal)}</span>
                     </div>
-                    <select className="form-input" required value={fontePessoal} onChange={e => setFontePessoal(e.target.value)} style={{ background: '#0a0a16', fontSize: '0.9rem' }}>
-                      <option value="" disabled>Escolha a caixinha...</option>
-                      <option value="contas">💳 Contas (Saldo: {formatarMoeda(saldos.contas)})</option>
+                    <select className="w-full bg-hawk-bg border border-hawk-red/20 rounded-xl px-3 py-2.5 text-hawk-text text-xs focus:outline-none focus:ring-1 focus:border-hawk-red appearance-none" required value={fontePessoal} onChange={e => setFontePessoal(e.target.value)}>
+                      <option value="" disabled>De onde vai sair o dinheiro?</option>
+                      <option value="contas">💳 Contas Fixas (Saldo: {formatarMoeda(saldos.contas)})</option>
                       <option value="livre">💸 Livre - Lazer (Saldo: {formatarMoeda(saldos.livre)})</option>
                       <option value="emergencia">🚨 Reserva (Saldo: {formatarMoeda(saldos.emergencia)})</option>
                       <option value="saldoConta">🏦 Conta Principal (Saldo: {formatarMoeda(saldos.saldoConta)})</option>
-                      <option value="NENHUMA">❌ Já pago / Não descontar</option>
+                      <option value="NENHUMA">❌ Já paguei por fora / Não descontar</option>
                     </select>
                   </div>
                 )}
 
                 {pendenciasFatura.totalEsposa > 0 && (
-                  <div className="form-group" style={{ margin: 0, padding: '12px', background: 'rgba(253, 121, 168, 0.1)', borderLeft: '4px solid #fd79a8', borderRadius: '8px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <span style={{ fontWeight: 'bold', color: '#fd79a8' }}>👩‍❤️‍👨 Parte da Esposa</span>
-                      <span style={{ fontWeight: 'bold' }}>{formatarMoeda(pendenciasFatura.totalEsposa)}</span>
+                  <div className="bg-[#fd79a8]/5 border-l-4 border-[#fd79a8] p-4 rounded-r-xl">
+                    <div className="flex justify-between items-center mb-3">
+                      <span className="font-bold text-[#fd79a8] text-sm flex items-center gap-2"><span>👩</span> Esposa</span>
+                      <span className="font-black text-[#fd79a8]">{formatarMoeda(pendenciasFatura.totalEsposa)}</span>
                     </div>
-                    <select className="form-input" required value={fonteEsposa} onChange={e => setFonteEsposa(e.target.value)} style={{ background: '#0a0a16', fontSize: '0.9rem' }}>
-                      <option value="" disabled>Escolha a caixinha...</option>
+                    <select className="w-full bg-hawk-bg border border-[#fd79a8]/20 rounded-xl px-3 py-2.5 text-hawk-text text-xs focus:outline-none focus:ring-1 focus:border-[#fd79a8] appearance-none" required value={fonteEsposa} onChange={e => setFonteEsposa(e.target.value)}>
+                      <option value="" disabled>De onde vai sair o dinheiro?</option>
                       <option value="saldoConta">🏦 Conta Principal (Saldo: {formatarMoeda(saldos.saldoConta)})</option>
-                      <option value="NENHUMA">❌ Já pago / Ela pagou por fora</option>
+                      <option value="NENHUMA">❌ Ela pagou por fora / Não descontar</option>
                     </select>
                   </div>
                 )}
               </div>
 
-              <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-                <button type="submit" className="btn-primary" style={{ flex: 1, padding: '14px', fontSize: '1rem' }} disabled={processandoPagamento || (pendenciasFatura.totalEmpresa > 0 && !fonteEmpresa) || (pendenciasFatura.totalPessoal > 0 && !fontePessoal) || (pendenciasFatura.totalEsposa > 0 && !fonteEsposa)}>
+              <div className="flex gap-3 pt-4 border-t border-white/5 mt-6">
+                <button 
+                  type="submit" 
+                  className="flex-1 font-bold rounded-xl px-4 py-3 text-sm text-hawk-bg bg-hawk-purple hover:bg-hawk-purple/90 transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed" 
+                  disabled={processandoPagamento || (pendenciasFatura.totalEmpresa > 0 && !fonteEmpresa) || (pendenciasFatura.totalPessoal > 0 && !fontePessoal) || (pendenciasFatura.totalEsposa > 0 && !fonteEsposa)}
+                >
                   {processandoPagamento ? 'Processando...' : 'Confirmar Pagamento'}
                 </button>
-                <button type="button" className="btn-secondary" onClick={() => setPagamentoFaturaModal(false)} style={{ padding: '14px 24px' }}>Cancelar</button>
+                <button type="button" className="px-6 py-3 font-bold text-sm text-hawk-text bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors" onClick={() => setPagamentoFaturaModal(false)}>
+                  Cancelar
+                </button>
               </div>
             </form>
           </div>

@@ -1,7 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../firebase';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, doc, getDoc, setDoc, getDocs, deleteDoc } from 'firebase/firestore';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import ReactMarkdown from 'react-markdown';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { formatarMoeda, parsarHoras } from '../utils/helpers';
 
@@ -31,13 +33,52 @@ function classificarTurno(horaInicio, horaFim) {
 
 export default function AnaliseTab() {
   const { usuario } = useAuth();
+  
+  // Dados do app
   const [registrosMap, setRegistrosMap] = useState({});
+  const [despesasFixas, setDespesasFixas] = useState([]);
+  const [despesasVariaveis, setDespesasVariaveis] = useState([]);
+  
+  // UI States
   const [filtroMes, setFiltroMes] = useState('todos');
+  
+  // Chatbot Config & State
+  const [apiKey, setApiKey] = useState('');
+  const [tipoVeiculo, setTipoVeiculo] = useState('gasolina');
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [messages, setMessages] = useState([]);
+  const [inputMessage, setInputMessage] = useState('');
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  
+  const chatEndRef = useRef(null);
 
+  // Auto-scroll chat
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // Load API Key and Vehicle Config
   useEffect(() => {
     if (!usuario) return;
+    const loadConfig = async () => {
+      const docRef = doc(db, 'usuarios', usuario.uid, 'configuracoes', 'ia');
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.apiKey) setApiKey(data.apiKey);
+        if (data.tipoVeiculo) setTipoVeiculo(data.tipoVeiculo);
+      }
+    };
+    loadConfig();
+  }, [usuario]);
+
+  // Load All Data for Dashboard and AI
+  useEffect(() => {
+    if (!usuario) return;
+
+    // Registros Uber (Real-time para gráficos)
     const registrosRef = collection(db, 'usuarios', usuario.uid, 'registros');
-    const unsubscribe = onSnapshot(registrosRef, (snapshot) => {
+    const unsubRegistros = onSnapshot(registrosRef, (snapshot) => {
       const mapa = {};
       snapshot.forEach(docSnap => {
         if (docSnap.exists()) {
@@ -46,8 +87,42 @@ export default function AnaliseTab() {
       });
       setRegistrosMap(mapa);
     });
-    return () => unsubscribe();
+
+    // Despesas Fixas (One-time fetch for AI Context)
+    const fetchFixas = async () => {
+      const fixasRef = collection(db, 'usuarios', usuario.uid, 'despesas_fixas');
+      const snap = await getDocs(fixasRef);
+      setDespesasFixas(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    };
+    
+    // Despesas Variáveis (One-time fetch for AI Context)
+    const fetchVariaveis = async () => {
+      const varRef = collection(db, 'usuarios', usuario.uid, 'despesas_variaveis');
+      const snap = await getDocs(varRef);
+      setDespesasVariaveis(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    };
+
+    fetchFixas();
+    fetchVariaveis();
+
+    return () => {
+      unsubRegistros();
+    };
   }, [usuario]);
+
+  const saveConfig = async (e) => {
+    e.preventDefault();
+    if (!usuario) return;
+    try {
+      await setDoc(doc(db, 'usuarios', usuario.uid, 'configuracoes', 'ia'), {
+        apiKey,
+        tipoVeiculo
+      }, { merge: true });
+      setIsConfigOpen(false);
+    } catch (err) {
+      alert('Erro ao salvar configurações');
+    }
+  };
 
   const mesesDisponiveis = useMemo(() => {
     const chaves = Object.keys(registrosMap);
@@ -69,7 +144,32 @@ export default function AnaliseTab() {
     return todos.filter(r => r.id.startsWith(filtroMes));
   }, [registrosMap, filtroMes]);
 
-  // ANÁLISE POR DIA DA SEMANA (Comparar Segunda x Segunda, etc)
+  // ANÁLISE MACRO (Cards Topo)
+  const macroMetricas = useMemo(() => {
+    let totalLiquido = 0;
+    let totalHoras = 0;
+    let totalKm = 0;
+
+    registrosFiltrados.forEach(r => {
+      const liq = r.totalLiquido != null ? Number(r.totalLiquido) : (Number(r.totalBruto||0) - Number(r.gastosGerais||0));
+      const hr = parsarHoras(r.horarioRodado);
+      const km = Number(r.km || 0);
+
+      totalLiquido += liq;
+      totalHoras += hr;
+      totalKm += km;
+    });
+
+    return {
+      ganhoPorHora: totalHoras > 0 ? totalLiquido / totalHoras : 0,
+      ganhoPorKm: totalKm > 0 ? totalLiquido / totalKm : 0,
+      totalHoras,
+      totalKm,
+      totalLiquido
+    };
+  }, [registrosFiltrados]);
+
+  // ANÁLISE POR DIA DA SEMANA
   const analiseDiasDaSemana = useMemo(() => {
     const diasArray = Array(7).fill(0).map((_, i) => ({
       idx: i,
@@ -84,7 +184,7 @@ export default function AnaliseTab() {
       const d = new Date(r.id + 'T12:00:00');
       if (isNaN(d.getTime())) return;
       
-      const diaSemana = d.getDay(); // 0 a 6
+      const diaSemana = d.getDay();
       const liq = r.totalLiquido != null ? Number(r.totalLiquido) : (Number(r.totalBruto||0) - Number(r.gastosGerais||0));
       const hr = parsarHoras(r.horarioRodado);
 
@@ -135,26 +235,127 @@ export default function AnaliseTab() {
     }).sort((a, b) => b.ganhoHora - a.ganhoHora);
   }, [registrosFiltrados]);
 
-  // INSIGHTS
-  const insights = useMemo(() => {
-    const ativos = analiseDiasDaSemana.filter(d => d.qtd > 0);
-    if (ativos.length === 0) return null;
-    
-    const melhorDia = [...ativos].sort((a, b) => b.mediaDiaria - a.mediaDiaria)[0];
-    const melhorDiaHora = [...ativos].sort((a, b) => b.ganhoHora - a.ganhoHora)[0];
-    
-    let turnoMsg = '';
-    if (analiseTurnos.length > 0) {
-      const t = analiseTurnos[0];
-      turnoMsg = `No geral, o seu turno mais lucrativo é **${t.nome}**, fazendo **${formatarMoeda(t.ganhoHora)} por hora**.`;
-    }
+  const handleExportarApagarAntigos = async () => {
+    if (!window.confirm("Deseja gerar a planilha com os registros UBER de 2024 e APAGÁ-LOS do sistema?")) return;
 
-    return {
-      melhorDia,
-      melhorDiaHora,
-      turnoMsg
-    };
-  }, [analiseDiasDaSemana, analiseTurnos]);
+    try {
+      setIsChatLoading(true);
+      
+      const anoMinimo = 2026;
+      const antigos = Object.values(registrosMap).filter(r => parseInt(r.id.split('-')[0], 10) < anoMinimo);
+      
+      if (antigos.length === 0) {
+        alert("Você não tem dados antigos (anteriores a " + anoMinimo + ") no momento.");
+        setIsChatLoading(false);
+        return;
+      }
+
+      // Montar CSV
+      let csvContent = "data:text/csv;charset=utf-8,";
+      csvContent += "Data,Km,Horas,Total Bruto,Gastos Gerais,Total Liquido\n";
+      antigos.forEach(r => {
+        const d = r.id || '';
+        const km = r.km || 0;
+        const hrs = r.horarioRodado || r.horasTrabalhadas || '';
+        const bruto = r.totalBruto || 0;
+        const gastos = r.gastosGerais || 0;
+        const liq = r.totalLiquido != null ? r.totalLiquido : (Number(r.totalBruto||0) - Number(r.gastosGerais||0));
+        csvContent += `${d},${km},${hrs},${bruto},${gastos},${liq}\n`;
+      });
+
+      // Baixar
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", "uber_historico_antigo.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Deletar
+      for (const r of antigos) {
+        await deleteDoc(doc(db, 'usuarios', usuario.uid, 'registros', r.id));
+      }
+      
+      alert("Sucesso! Os registros antigos foram salvos em CSV e apagados do aplicativo.");
+    } catch (err) {
+      console.error(err);
+      alert("Ocorreu um erro ao processar os dados antigos.");
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
+
+  // Função para lidar com o envio de mensagem ao Chatbot
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!inputMessage.trim() || !apiKey) return;
+
+    const userMsg = inputMessage;
+    setInputMessage('');
+    setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
+    setIsChatLoading(true);
+
+    try {
+      const genAI = new GoogleGenerativeAI(apiKey);
+      
+      // Filtrar dados antigos (antes de 2026) para não confundir a IA com época do carro a combustão
+      const anoMinimo = 2026;
+      
+      const registrosAtuais = Object.values(registrosMap).filter(r => {
+        const ano = parseInt(r.id.split('-')[0], 10);
+        return ano >= anoMinimo;
+      }).reduce((acc, r) => { acc[r.id] = r; return acc; }, {});
+
+      const despesasFixasAtuais = despesasFixas; // Despesas fixas são contínuas
+      
+      const despesasVariaveisAtuais = despesasVariaveis.filter(d => {
+        return d.ano >= anoMinimo;
+      });
+
+      // Contexto gigante para a IA
+      const systemInstruction = `Você é um consultor financeiro e especialista em motoristas de aplicativo (Uber/99).
+O usuário deseja dicas, análises, e estratégias sobre sua rotina, ganhos e gastos.
+Abaixo estão os dados financeiros registrados pelo usuário no sistema (filtrados de ${anoMinimo} em diante). Analise-os para responder às perguntas de forma precisa e personalizada.
+Responda sempre em português, com tom amigável, motivacional e direto. Use formatação Markdown (negrito, listas).
+Seja inteligente: correlacione os dias mais rentáveis, gastos que estão altos, etc.
+
+TIPO DE VEÍCULO DO USUÁRIO: ${tipoVeiculo}
+${tipoVeiculo === 'eletrico' ? '(Lembre-se que veículos elétricos têm gastos com "combustível" quase nulos. Não alerte sobre gastos baixos com isso).' : ''}
+
+=== DADOS DO USUÁRIO (JSON) ===
+REGISTROS UBER/99 (Ganhos e Horários por dia):
+${JSON.stringify(registrosAtuais)}
+
+DESPESAS FIXAS (Custos mensais):
+${JSON.stringify(despesasFixasAtuais)}
+
+DESPESAS VARIÁVEIS (Gastos diários esporádicos):
+${JSON.stringify(despesasVariaveisAtuais)}
+`;
+
+      const model = genAI.getGenerativeModel({ 
+        model: "gemini-2.5-flash",
+        systemInstruction: systemInstruction 
+      });
+
+      const history = messages.map(m => ({
+        role: m.role === 'user' ? 'user' : 'model',
+        parts: [{ text: m.text }]
+      }));
+
+      const chat = model.startChat({ history });
+      const result = await chat.sendMessage(userMsg);
+      const response = await result.response;
+      
+      setMessages(prev => [...prev, { role: 'model', text: response.text() }]);
+    } catch (err) {
+      console.error(err);
+      setMessages(prev => [...prev, { role: 'model', text: 'Desculpe, ocorreu um erro ao gerar a resposta. Verifique sua API Key ou sua conexão.' }]);
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
 
   const CustomTooltipRecharts = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
@@ -170,73 +371,84 @@ export default function AnaliseTab() {
   };
 
   return (
-    <div className="analise-tab">
-      <div className="section-card" style={{ marginBottom: '24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-          <div>
-            <h2 className="section-title" style={{ margin: 0 }}>📊 Análise Uber</h2>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '6px' }}>
-              Inteligência de rendimento por dia da semana e performance de horários e turnos.
-            </p>
+    <div className="max-w-6xl mx-auto px-3 md:px-6 py-4 space-y-6 animate-fade-in">
+      
+      {/* HEADER & FILTER */}
+      <div className="rounded-2xl border border-glass-border bg-hawk-card p-6 shadow-card flex flex-col md:flex-row justify-between items-center gap-4">
+        <div>
+          <h2 className="text-2xl font-black text-hawk-text tracking-tight mb-1 flex items-center gap-2">
+            <span>📊</span> Análise Uber & IA
+          </h2>
+          <p className="text-hawk-muted text-sm">
+            Inteligência de rendimento, horários e Chatbot assistente financeiro.
+          </p>
+        </div>
+        <div className="w-full md:w-auto min-w-[200px]">
+          <select
+            className="w-full bg-hawk-input border border-glass-border rounded-xl px-4 py-2.5 text-hawk-text text-sm focus:outline-none focus:ring-1 focus:border-hawk-purple/50 transition-colors appearance-none cursor-pointer"
+            value={filtroMes}
+            onChange={e => setFiltroMes(e.target.value)}
+          >
+            <option value="todos">📅 Todo o Histórico</option>
+            {mesesDisponiveis.map(m => {
+              const parts = m.split('-');
+              const d = new Date(Number(parts[0]), Number(parts[1]) - 1, 15);
+              const l = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+              return <option key={m} value={m}>{l.charAt(0).toUpperCase() + l.slice(1)}</option>;
+            })}
+          </select>
+        </div>
+      </div>
+
+      {/* MACRO METRICS (Ganho Hora/Km) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="relative overflow-hidden rounded-2xl border border-glass-border bg-hawk-card p-6 shadow-card flex items-center gap-4 group">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-hawk-green/5 rounded-full blur-2xl -mr-16 -mt-16 transition-all duration-500 group-hover:bg-hawk-green/10" />
+          <div className="w-12 h-12 rounded-xl bg-hawk-green/10 text-hawk-green flex items-center justify-center text-2xl border border-hawk-green/20">
+            ⏱️
           </div>
-          <div className="form-group" style={{ minWidth: '180px' }}>
-            <select
-              className="form-select"
-              value={filtroMes}
-              onChange={e => setFiltroMes(e.target.value)}
-              style={{ width: '100%' }}
-            >
-              <option value="todos">📅 Todo o Histórico</option>
-              {mesesDisponiveis.map(m => {
-                const parts = m.split('-');
-                const d = new Date(Number(parts[0]), Number(parts[1]) - 1, 15);
-                const l = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-                return <option key={m} value={m}>{l.charAt(0).toUpperCase() + l.slice(1)}</option>;
-              })}
-            </select>
+          <div>
+            <span className="block text-sm font-semibold text-hawk-muted mb-1">Média de Ganho por Hora</span>
+            <span className="block text-2xl font-black text-hawk-green tracking-tight">
+              {formatarMoeda(macroMetricas.ganhoPorHora)}
+            </span>
+            <span className="text-xs text-hawk-dim">Considera o filtro selecionado</span>
+          </div>
+        </div>
+        
+        <div className="relative overflow-hidden rounded-2xl border border-glass-border bg-hawk-card p-6 shadow-card flex items-center gap-4 group">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-hawk-blue/5 rounded-full blur-2xl -mr-16 -mt-16 transition-all duration-500 group-hover:bg-hawk-blue/10" />
+          <div className="w-12 h-12 rounded-xl bg-hawk-blue/10 text-hawk-blue flex items-center justify-center text-2xl border border-hawk-blue/20">
+            🛣️
+          </div>
+          <div>
+            <span className="block text-sm font-semibold text-hawk-muted mb-1">Média de Ganho por Km</span>
+            <span className="block text-2xl font-black text-hawk-blue tracking-tight">
+              {formatarMoeda(macroMetricas.ganhoPorKm)}
+            </span>
+            <span className="text-xs text-hawk-dim">Considera o filtro selecionado</span>
           </div>
         </div>
       </div>
 
-      {registrosFiltrados.length === 0 ? (
-        <div className="section-card" style={{ textAlign: 'center', padding: '40px' }}>
-          <p className="empty-state">Sem dados para o período.</p>
-        </div>
-      ) : (
-        <>
-          {/* Insights */}
-          {insights && (
-            <div className="section-card" style={{ background: 'linear-gradient(135deg, rgba(108, 92, 231, 0.1), rgba(0, 212, 170, 0.05))', marginBottom: '24px', border: '1px solid rgba(108, 92, 231, 0.2)' }}>
-              <h3 className="subsection-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                🧠 Insights Inteligentes da sua Operação
-              </h3>
-              <ul style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: '1.6', paddingLeft: '20px' }}>
-                <li style={{ marginBottom: '6px' }}>
-                  Historicamente, trabalhar às <strong>{insights.melhorDia.nome}s</strong> gera a maior média bruta diária: <strong>{formatarMoeda(insights.melhorDia.mediaDiaria)}</strong>.
-                </li>
-                <li style={{ marginBottom: '6px' }}>
-                  No entanto, a maior eficiência financeira (R$ ganho por hora rodada) ocorre às <strong>{insights.melhorDiaHora.nome}s</strong>, pagando <strong>{formatarMoeda(insights.melhorDiaHora.ganhoHora)}/h</strong>.
-                </li>
-                {insights.turnoMsg && <li dangerouslySetInnerHTML={{ __html: insights.turnoMsg.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />}
-              </ul>
-            </div>
-          )}
-
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        {/* LADO ESQUERDO: GRÁFICOS */}
+        <div className="space-y-6">
           {/* Gráfico de Barras: Melhores Dias */}
-          <div className="section-card" style={{ marginBottom: '24px' }}>
-            <h3 className="subsection-title">📅 Rendimento por Hora em cada Dia da Semana</h3>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: '24px' }}>
-              Comparando os mesmos dias da semana para encontrar os melhores dias para trabalhar e folgar.
+          <div className="rounded-2xl border border-glass-border bg-hawk-card p-6 shadow-card">
+            <h3 className="text-lg font-bold text-hawk-text mb-1">📅 Rendimento por Hora (Dias)</h3>
+            <p className="text-xs text-hawk-muted mb-6">
+              Dias da semana mais lucrativos por hora rodada.
             </p>
-            <div style={{ height: '300px', width: '100%' }}>
+            <div className="h-[250px] w-full">
               <ResponsiveContainer>
                 <BarChart data={analiseDiasDaSemana} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <XAxis dataKey="shortNome" stroke="#888" fontSize={12} />
-                  <YAxis stroke="#888" fontSize={12} tickFormatter={(val) => `R$${val}`} />
+                  <XAxis dataKey="shortNome" stroke="#888" fontSize={12} tickLine={false} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} />
+                  <YAxis stroke="#888" fontSize={12} tickLine={false} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} tickFormatter={(val) => `R$${val}`} />
                   <Tooltip cursor={{ fill: 'rgba(255,255,255,0.05)' }} content={<CustomTooltipRecharts />} />
-                  <Bar dataKey="ganhoHora" radius={[6, 6, 0, 0]}>
+                  <Bar dataKey="ganhoHora" radius={[6, 6, 0, 0]} maxBarSize={40}>
                     {analiseDiasDaSemana.map((entry, index) => {
-                      // Final de semana cor diferente (Sábado 6, Domingo 0)
                       const color = (entry.idx === 0 || entry.idx === 6) ? '#6c5ce7' : '#00d4aa';
                       return <Cell key={`cell-${index}`} fill={color} />;
                     })}
@@ -244,95 +456,159 @@ export default function AnaliseTab() {
                 </BarChart>
               </ResponsiveContainer>
             </div>
-            <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', marginTop: '16px', fontSize: '0.8rem' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: 12, height: 12, background: '#00d4aa', borderRadius: 2 }} /> Dias Úteis</span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: 12, height: 12, background: '#6c5ce7', borderRadius: 2 }} /> Fins de Semana</span>
-            </div>
           </div>
 
           {/* Ranking de Turnos */}
-          <div className="section-card">
-            <h3 className="subsection-title">⏱️ Performance e Marcação por Turnos</h3>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: '24px' }}>
-              Identifique se a madrugada, manhã, tarde ou noite entregam mais rentabilidade.
+          <div className="rounded-2xl border border-glass-border bg-hawk-card p-6 shadow-card overflow-hidden">
+            <h3 className="text-lg font-bold text-hawk-text mb-1">⏱️ Performance por Turnos</h3>
+            <p className="text-xs text-hawk-muted mb-4">
+              Turnos que entregam mais rentabilidade.
             </p>
             {analiseTurnos.length > 0 ? (
-              <div className="historico-table-wrapper" style={{ border: '1px solid var(--glass-border)', borderRadius: '12px' }}>
-                <table className="historico-table">
+              <div className="overflow-x-auto rounded-xl border border-white/5">
+                <table className="w-full text-left border-collapse min-w-[400px]">
                   <thead>
-                    <tr>
-                      <th>Turno de Trabalho</th>
-                      <th>Registros</th>
-                      <th>Rendimento Hora</th>
-                      <th>Média Líquida/Turno</th>
-                      <th style={{ width: '40%' }}>Mapa do Dia (Timeline Visual)</th>
+                    <tr className="bg-white/5 border-b border-white/5 text-xs text-hawk-muted uppercase tracking-wider font-bold">
+                      <th className="p-3">Turno</th>
+                      <th className="p-3">Regs</th>
+                      <th className="p-3">R$/Hora</th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {analiseTurnos.map((t, idx) => {
-                      const mLiq = t.totalLiquido / t.qtd;
-                      
-                      const start = t.mediaInicio;
-                      const end = t.mediaFim;
-                      const duration = end - start;
-                      
-                      let bars = [];
-                      if (end > 24) {
-                         const startPct = (start / 24) * 100;
-                         const endPct = ((end - 24) / 24) * 100;
-                         const width1 = 100 - startPct;
-                         bars.push({ left: startPct, width: width1 });
-                         bars.push({ left: 0, width: endPct });
-                      } else {
-                         const startPct = (start / 24) * 100;
-                         const widthPct = (duration / 24) * 100;
-                         bars.push({ left: startPct, width: widthPct });
-                      }
-                      
-                      return (
-                        <tr key={idx}>
-                          <td style={{ fontWeight: 600 }}>{t.nome}</td>
-                          <td>{t.qtd} dias</td>
-                          <td style={{ color: 'var(--green)', fontWeight: 'bold' }}>{formatarMoeda(t.ganhoHora)}/h</td>
-                          <td>{formatarMoeda(mLiq)}</td>
-                          <td style={{ width: '40%' }}>
-                            <div style={{ position: 'relative', width: '100%', height: '16px', borderRadius: '12px', background: 'rgba(255,255,255,0.04)', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
-                              {/* Divisórias de 6 horas */}
-                              <div style={{ position: 'absolute', left: '25%', top: 0, bottom: 0, borderLeft: '1px solid rgba(255,255,255,0.1)' }} />
-                              <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, borderLeft: '1px solid rgba(255,255,255,0.1)' }} />
-                              <div style={{ position: 'absolute', left: '75%', top: 0, bottom: 0, borderLeft: '1px solid rgba(255,255,255,0.1)' }} />
-                              
-                              {/* Preenchimento das horas trabalhadas */}
-                              {bars.map((b, i) => (
-                                <div key={i} style={{
-                                  position: 'absolute', top: 0, bottom: 0,
-                                  left: `${b.left}%`, width: `${b.width}%`,
-                                  background: 'linear-gradient(90deg, #00d4aa, #6c5ce7)',
-                                  boxShadow: '0 0 8px rgba(0, 212, 170, 0.4)',
-                                  borderRadius: '12px'
-                                }} title={`De ${Math.floor(start)}h até ${Math.floor(end > 24 ? end - 24 : end)}h`} />
-                              ))}
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: '#888', marginTop: '6px', fontWeight: 500 }}>
-                              <span>00h</span>
-                              <span>06h</span>
-                              <span>12h</span>
-                              <span>18h</span>
-                              <span>00h</span>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                  <tbody className="divide-y divide-white/5 text-sm">
+                    {analiseTurnos.map((t, idx) => (
+                      <tr key={idx} className="hover:bg-white/[0.02] transition-colors">
+                        <td className="p-3 font-bold text-hawk-text">{t.nome}</td>
+                        <td className="p-3 text-hawk-muted">{t.qtd}</td>
+                        <td className="p-3 font-bold text-hawk-green">{formatarMoeda(t.ganhoHora)}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
             ) : (
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Registre as horas de início e término na aba de Ganhos para gerar este mapa.</p>
+              <p className="text-hawk-muted text-sm italic">Registre horas de início e término na aba de Ganhos.</p>
             )}
           </div>
-        </>
-      )}
+        </div>
+
+        {/* LADO DIREITO: CHATBOT IA */}
+        <div className="rounded-2xl border border-hawk-purple/30 bg-gradient-to-br from-hawk-bg to-hawk-card p-0 shadow-card flex flex-col h-[700px] lg:h-auto overflow-hidden">
+          {/* Chat Header */}
+          <div className="p-4 border-b border-glass-border bg-hawk-purple/10 flex justify-between items-center">
+            <div>
+              <h3 className="text-lg font-bold text-hawk-text flex items-center gap-2">
+                <span>🧠</span> Hawk AI Chat
+              </h3>
+              <p className="text-xs text-hawk-muted">
+                Pergunte sobre seus dados, dicas e estratégias.
+              </p>
+            </div>
+            <button 
+              onClick={() => setIsConfigOpen(!isConfigOpen)}
+              className="text-hawk-muted hover:text-hawk-purple transition-colors p-2 rounded-lg hover:bg-hawk-purple/10"
+              title="Configurações da IA"
+            >
+              ⚙️
+            </button>
+          </div>
+
+          {/* Configurações Dropdown */}
+          {isConfigOpen && (
+            <div className="p-4 border-b border-glass-border bg-hawk-card/90">
+              <form onSubmit={saveConfig} className="space-y-3">
+                <div>
+                  <label className="text-xs font-semibold text-hawk-muted block mb-1">API Key Gemini:</label>
+                  <input type="password" required value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="Sua chave..." className="w-full bg-hawk-input border border-glass-border rounded-lg px-3 py-2 text-sm text-hawk-text focus:outline-none focus:border-hawk-purple" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-hawk-muted block mb-1">Tipo de Veículo:</label>
+                  <select value={tipoVeiculo} onChange={e => setTipoVeiculo(e.target.value)} className="w-full bg-hawk-input border border-glass-border rounded-lg px-3 py-2 text-sm text-hawk-text focus:outline-none focus:border-hawk-purple cursor-pointer">
+                    <option value="gasolina">Gasolina</option>
+                    <option value="etanol">Etanol</option>
+                    <option value="gnv">GNV (Gás Natural)</option>
+                    <option value="eletrico">Elétrico ⚡</option>
+                    <option value="hibrido">Híbrido</option>
+                    <option value="diesel">Diesel</option>
+                  </select>
+                </div>
+                <button type="submit" className="w-full bg-hawk-purple hover:bg-hawk-purple/90 text-white font-semibold py-2 rounded-lg text-sm transition-all active:scale-95">Salvar Configurações</button>
+              </form>
+              
+              <div className="mt-4 pt-4 border-t border-glass-border">
+                <p className="text-xs text-hawk-muted mb-2 font-medium">Limpeza de Dados Antigos:</p>
+                <button 
+                  onClick={handleExportarApagarAntigos} 
+                  className="w-full bg-hawk-red/10 border border-hawk-red/20 hover:bg-hawk-red/20 text-hawk-red font-semibold py-2 rounded-lg text-xs transition-all active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                  Exportar UBER (2025 e 2024) e Apagar
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Chat Messages */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {messages.length === 0 ? (
+              <div className="text-center h-full flex flex-col items-center justify-center text-hawk-muted opacity-50">
+                <span className="text-4xl mb-2">🤖</span>
+                <p className="text-sm">Olá! Eu sou sua IA Financeira.</p>
+                <p className="text-xs max-w-[250px] mt-1">Eu conheço 100% dos seus dados de ganhos, gastos fixos e variáveis. O que deseja analisar hoje?</p>
+              </div>
+            ) : (
+              messages.map((msg, i) => (
+                <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${msg.role === 'user' ? 'bg-hawk-purple text-white rounded-br-none' : 'bg-hawk-input border border-glass-border text-hawk-text rounded-bl-none'}`}>
+                    <div className="prose prose-sm prose-invert max-w-none prose-p:leading-relaxed prose-strong:text-current">
+                      <ReactMarkdown>{msg.text}</ReactMarkdown>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+            {isChatLoading && (
+              <div className="flex justify-start">
+                <div className="max-w-[85%] rounded-2xl rounded-bl-none px-4 py-3 bg-hawk-input border border-glass-border text-hawk-muted flex items-center gap-2 text-sm">
+                  <div className="w-2 h-2 bg-hawk-purple rounded-full animate-bounce" />
+                  <div className="w-2 h-2 bg-hawk-purple rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
+                  <div className="w-2 h-2 bg-hawk-purple rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                </div>
+              </div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
+
+          {/* Chat Input */}
+          <div className="p-4 border-t border-glass-border bg-hawk-bg">
+            {!apiKey ? (
+              <button onClick={() => setIsConfigOpen(true)} className="w-full text-center text-sm text-hawk-purple underline">
+                Configure sua API Key para começar a usar a IA
+              </button>
+            ) : (
+              <form onSubmit={handleSendMessage} className="flex gap-2">
+                <input
+                  type="text"
+                  value={inputMessage}
+                  onChange={e => setInputMessage(e.target.value)}
+                  placeholder="Pergunte sobre seus ganhos, melhores dias..."
+                  className="flex-1 bg-hawk-input border border-glass-border rounded-xl px-4 py-3 text-sm text-hawk-text focus:outline-none focus:border-hawk-purple transition-all"
+                />
+                <button
+                  type="submit"
+                  disabled={!inputMessage.trim() || isChatLoading}
+                  className="bg-hawk-purple hover:bg-hawk-purple/90 text-white rounded-xl px-4 py-3 disabled:opacity-50 transition-all flex items-center justify-center"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                  </svg>
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+
+      </div>
     </div>
   );
 }

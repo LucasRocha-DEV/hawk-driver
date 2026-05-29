@@ -380,7 +380,7 @@ export default function DespesasFixasTab() {
   }
 
   return (
-    <div className="tab-content">
+    <div className="max-w-4xl mx-auto px-3 md:px-6 py-4 space-y-6 animate-fade-in">
       {/* ── Month Navigation ── */}
       <NavegacaoMes
         mesAtual={mesAtual}
@@ -390,112 +390,90 @@ export default function DespesasFixasTab() {
         onMudouMes={cancelarEdicao}
       />
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
-        <button className="btn-sm" onClick={() => setModalCategorias(true)} style={{ background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' }}>
-          ⚙️ Gerenciar Categorias
+      <div className="flex justify-end mb-4">
+        <button 
+          className="px-4 py-2 text-xs font-bold rounded-xl border border-white/10 bg-white/5 text-hawk-text hover:bg-white/10 transition-colors flex items-center gap-2"
+          onClick={() => setModalCategorias(true)}
+        >
+          <span>⚙️</span> Gerenciar Categorias
         </button>
       </div>
 
       {/* CARD PRINCIPAL - TOTAL */}
-      <div style={{ marginBottom: '16px' }}>
-        <div className="metric-card" style={{ padding: '24px', justifyContent: 'center', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-          <div className="metric-card-accent" style={{ background: 'linear-gradient(135deg, #a29bfe, #6c5ce7)' }} />
-          <div className="metric-card-icon" style={{ width: '56px', height: '56px', fontSize: '1.8rem' }}>💸</div>
-          <span className="metric-card-label" style={{ fontSize: '1.1rem', margin: 0 }}>Total Fixo:</span>
-          <span className="metric-card-value" style={{ fontSize: 'clamp(1.5rem, 5vw, 2.2rem)', color: '#a29bfe' }}>{formatarMoeda(total)}</span>
+      <div className="rounded-3xl border border-hawk-purple/30 bg-gradient-to-br from-hawk-purple/20 to-hawk-card/90 p-8 text-center shadow-card-hover relative overflow-hidden mb-6">
+        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 mix-blend-overlay"></div>
+        <div className="relative z-10 flex flex-col items-center gap-2">
+          <span className="text-sm font-semibold uppercase tracking-widest text-hawk-purple mb-1">💸 Total Fixo:</span>
+          <span className="text-5xl md:text-6xl font-black tracking-tight text-white drop-shadow-[0_0_15px_rgba(108,92,231,0.5)]">
+            {formatarMoeda(total)}
+          </span>
         </div>
       </div>
 
       {/* CARDS SECUNDÁRIOS */}
-      <div className="metric-cards-grid">
-        <div className="metric-card">
-          <div className="metric-card-accent" style={{ background: 'linear-gradient(135deg, #a29bfe, #6c5ce7)' }} />
-          <div className="metric-card-icon">🏢</div>
-          <div className="metric-card-body">
-            <span className="metric-card-label">Empresa</span>
-            <span className="metric-card-value" style={{ color: '#a29bfe' }}>{formatarMoeda(totalEmpresa)}</span>
-          </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="rounded-2xl border border-glass-border bg-hawk-card p-5 shadow-card flex flex-col items-center text-center hover:border-hawk-purple/30 transition-colors group">
+          <div className="w-10 h-10 rounded-full bg-hawk-purple/10 flex items-center justify-center text-lg mb-2 group-hover:scale-110 transition-transform">🏢</div>
+          <span className="text-[10px] font-bold text-hawk-muted uppercase tracking-wide mb-1">Empresa</span>
+          <span className="text-lg font-bold text-hawk-purple">{formatarMoeda(totalEmpresa)}</span>
         </div>
-        <div className="metric-card">
-          <div className="metric-card-accent" style={{ background: 'linear-gradient(135deg, #74b9ff, #0984e3)' }} />
-          <div className="metric-card-icon">👤</div>
-          <div className="metric-card-body">
-            <span className="metric-card-label">Pessoal</span>
-            <span className="metric-card-value" style={{ color: '#74b9ff' }}>{formatarMoeda(totalPessoal)}</span>
-          </div>
+        <div className="rounded-2xl border border-glass-border bg-hawk-card p-5 shadow-card flex flex-col items-center text-center hover:border-hawk-blue/30 transition-colors group">
+          <div className="w-10 h-10 rounded-full bg-hawk-blue/10 flex items-center justify-center text-lg mb-2 group-hover:scale-110 transition-transform">👤</div>
+          <span className="text-[10px] font-bold text-hawk-muted uppercase tracking-wide mb-1">Pessoal</span>
+          <span className="text-lg font-bold text-hawk-blue">{formatarMoeda(totalPessoal)}</span>
         </div>
-        <div className="metric-card">
-          <div className="metric-card-accent" style={{ background: 'linear-gradient(135deg, #00d4aa, #00b894)' }} />
-          <div className="metric-card-icon">✅</div>
-          <div className="metric-card-body">
-            <span className="metric-card-label">Pago</span>
-            <span className="metric-card-value" style={{ color: '#00d4aa' }}>{formatarMoeda(pago)}</span>
-          </div>
+        <div className="rounded-2xl border border-glass-border bg-hawk-card p-5 shadow-card flex flex-col items-center text-center hover:border-hawk-green/30 transition-colors group">
+          <div className="w-10 h-10 rounded-full bg-hawk-green/10 flex items-center justify-center text-lg mb-2 group-hover:scale-110 transition-transform">✅</div>
+          <span className="text-[10px] font-bold text-hawk-muted uppercase tracking-wide mb-1">Pago</span>
+          <span className="text-lg font-bold text-hawk-green">{formatarMoeda(pago)}</span>
         </div>
-        <div className="metric-card">
-          <div className="metric-card-accent" style={{ background: 'linear-gradient(135deg, #ff6b6b, #ee5a24)' }} />
-          <div className="metric-card-icon">⚠️</div>
-          <div className="metric-card-body">
-            <span className="metric-card-label">Pendente</span>
-            <span className="metric-card-value" style={{ color: '#ff6b6b' }}>{formatarMoeda(pendente)}</span>
-          </div>
+        <div className="rounded-2xl border border-glass-border bg-hawk-card p-5 shadow-card flex flex-col items-center text-center hover:border-hawk-red/30 transition-colors group">
+          <div className="w-10 h-10 rounded-full bg-hawk-red/10 flex items-center justify-center text-lg mb-2 group-hover:scale-110 transition-transform">⚠️</div>
+          <span className="text-[10px] font-bold text-hawk-muted uppercase tracking-wide mb-1">Pendente</span>
+          <span className="text-lg font-bold text-hawk-red">{formatarMoeda(pendente)}</span>
         </div>
       </div>
 
-      <form className="expense-form glass-card" onSubmit={salvar}>
-        <h3 className="form-title">{editandoId ? 'Editar Despesa' : 'Nova Despesa Fixa'}</h3>
+      <form className="rounded-2xl border border-glass-border bg-hawk-card p-6 shadow-card space-y-4" onSubmit={salvar}>
+        <h3 className="text-lg font-bold text-hawk-text flex items-center gap-2 border-b border-white/5 pb-3">
+          {editandoId ? '✏️ Editar Despesa' : '➕ Nova Despesa Fixa'}
+        </h3>
 
-        <div className="form-grid">
-          <div className="form-group form-group-wide">
-            <label htmlFor="descricao">Descrição</label>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="md:col-span-2 space-y-1.5">
+            <label htmlFor="descricao" className="block text-xs font-bold text-hawk-muted uppercase tracking-widest">Descrição</label>
             <input
-              id="descricao"
-              name="descricao"
-              type="text"
+              id="descricao" name="descricao" type="text"
               placeholder="Ex: Seguro, Academia..."
-              value={form.descricao}
-              onChange={handleChange}
-              required
+              value={form.descricao} onChange={handleChange} required
+              className="w-full bg-hawk-input border border-glass-border rounded-xl px-4 py-2.5 text-hawk-text text-sm focus:outline-none focus:ring-1 focus:border-hawk-purple/50 transition-colors"
             />
           </div>
 
-          <div className="form-group">
-            <label htmlFor="valor">Valor (R$)</label>
+          <div className="space-y-1.5">
+            <label htmlFor="valor" className="block text-xs font-bold text-hawk-muted uppercase tracking-widest">Valor (R$)</label>
             <input
-              id="valor"
-              name="valor"
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="0,00"
-              value={form.valor}
-              onChange={handleChange}
-              required
+              id="valor" name="valor" type="number" min="0" step="0.01"
+              placeholder="0,00" value={form.valor} onChange={handleChange} required
+              className="w-full bg-hawk-input border border-glass-border rounded-xl px-4 py-2.5 text-hawk-text text-sm focus:outline-none focus:ring-1 focus:border-hawk-purple/50 transition-colors"
             />
           </div>
 
-          <div className="form-group">
-            <label htmlFor="vencimento">Dia de Vencimento</label>
+          <div className="space-y-1.5">
+            <label htmlFor="vencimento" className="block text-xs font-bold text-hawk-muted uppercase tracking-widest">Dia de Vencimento</label>
             <input
-              id="vencimento"
-              name="vencimento"
-              type="number"
-              min="1"
-              max="31"
-              placeholder="1–31"
-              value={form.vencimento}
-              onChange={handleChange}
+              id="vencimento" name="vencimento" type="number" min="1" max="31"
+              placeholder="1–31" value={form.vencimento} onChange={handleChange}
+              className="w-full bg-hawk-input border border-glass-border rounded-xl px-4 py-2.5 text-hawk-text text-sm focus:outline-none focus:ring-1 focus:border-hawk-purple/50 transition-colors"
             />
           </div>
 
-          <div className="form-group">
-            <label htmlFor="categoria">Categoria Base</label>
+          <div className="space-y-1.5 md:col-span-2">
+            <label htmlFor="categoria" className="block text-xs font-bold text-hawk-muted uppercase tracking-widest">Categoria Base</label>
             <select
-              id="categoria"
-              name="categoria"
-              value={form.categoria}
-              onChange={handleChange}
-              required
+              id="categoria" name="categoria"
+              value={form.categoria} onChange={handleChange} required
+              className="w-full bg-hawk-input border border-glass-border rounded-xl px-4 py-2.5 text-hawk-text text-sm focus:outline-none focus:ring-1 focus:border-hawk-purple/50 transition-colors appearance-none"
             >
               <option value="">Selecione...</option>
               {categorias.map((cat) => (
@@ -504,153 +482,186 @@ export default function DespesasFixasTab() {
             </select>
           </div>
 
-          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-            <label htmlFor="cartaoId">💳 Vinculado ao Cartão (opcional)</label>
+          <div className="space-y-1.5 md:col-span-2">
+            <label htmlFor="cartaoId" className="block text-xs font-bold text-hawk-muted uppercase tracking-widest">💳 Vinculado ao Cartão (opcional)</label>
             <select
-              id="cartaoId"
-              name="cartaoId"
-              value={form.cartaoId}
-              onChange={handleChange}
-              className="form-input"
+              id="cartaoId" name="cartaoId"
+              value={form.cartaoId} onChange={handleChange}
+              className="w-full bg-hawk-input border border-glass-border rounded-xl px-4 py-2.5 text-hawk-text text-sm focus:outline-none focus:ring-1 focus:border-hawk-purple/50 transition-colors appearance-none"
             >
               <option value="">Nenhum (pagamento por fora, Pix, boleto)</option>
               {cartoes.map(c => (
                 <option key={c.id} value={c.id}>{c.nome} ({c.bandeira})</option>
               ))}
             </select>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+            <p className="text-[10px] text-hawk-muted mt-1">
               Se selecionado, essa assinatura será cobrada na fatura deste cartão todo mês.
             </p>
           </div>
 
-          <SeletorNatureza
-            natureza={form.natureza}
-            setNatureza={(n) => setForm({...form, natureza: n})}
-            isEsposa={form.isEsposa}
-            setIsEsposa={(v) => setForm({...form, isEsposa: v})}
-          />
+          <div className="md:col-span-2">
+            <SeletorNatureza
+              natureza={form.natureza}
+              setNatureza={(n) => setForm({...form, natureza: n})}
+              isEsposa={form.isEsposa}
+              setIsEsposa={(v) => setForm({...form, isEsposa: v})}
+            />
+          </div>
 
-          <div className="form-group form-group-toggle">
-            <label className="toggle-label">
-              <span className="toggle-text">
+          <div className="md:col-span-2 bg-hawk-bg/30 p-4 rounded-xl border border-white/5 flex items-center justify-between">
+            <div className="flex flex-col">
+              <span className="font-bold text-sm text-hawk-text flex items-center gap-2">
                 🔁 Conta Recorrente
-                <span className="toggle-hint">
-                  {form.recorrente ? 'Aparece todo mês' : 'Apenas neste mês'}
-                </span>
               </span>
-              <div
-                className={`toggle-switch ${form.recorrente ? 'toggle-on' : ''}`}
-                onClick={() => setForm(prev => ({ ...prev, recorrente: !prev.recorrente }))}
-              >
-                <div className="toggle-knob" />
-              </div>
-            </label>
+              <span className="text-xs text-hawk-muted mt-0.5">
+                {form.recorrente ? 'Aparece todo mês' : 'Apenas neste mês'}
+              </span>
+            </div>
+            <button
+              type="button"
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.recorrente ? 'bg-hawk-purple' : 'bg-gray-600'}`}
+              onClick={() => setForm(prev => ({ ...prev, recorrente: !prev.recorrente }))}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${form.recorrente ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
           </div>
 
           {form.recorrente && (
-            <div className="form-group form-group-wide vigencia-final">
-              <label>📅 Vigência Final (opcional)</label>
-              <div className="vigencia-inputs">
-                <select name="mesFim" value={form.mesFim} onChange={handleChange} className="vigencia-select">
+            <div className="md:col-span-2 space-y-1.5 p-4 rounded-xl border border-hawk-purple/20 bg-hawk-purple/5 animate-fade-in">
+              <label className="block text-xs font-bold text-hawk-purple uppercase tracking-widest">📅 Vigência Final (opcional)</label>
+              <div className="flex gap-2">
+                <select name="mesFim" value={form.mesFim} onChange={handleChange} className="flex-1 bg-hawk-input border border-hawk-purple/30 rounded-xl px-4 py-2.5 text-hawk-text text-sm focus:outline-none focus:ring-1 focus:border-hawk-purple/50 appearance-none">
                   <option value="">Mês...</option>
                   {MESES.map((m, i) => (
                     <option key={i} value={i}>{m}</option>
                   ))}
                 </select>
-                <input name="anoFim" type="number" min="2024" max="2040" placeholder="Ano" value={form.anoFim} onChange={handleChange} className="vigencia-ano-input" />
+                <input name="anoFim" type="number" min="2024" max="2040" placeholder="Ano" value={form.anoFim} onChange={handleChange} className="w-24 bg-hawk-input border border-hawk-purple/30 rounded-xl px-4 py-2.5 text-hawk-text text-sm focus:outline-none focus:ring-1 focus:border-hawk-purple/50 text-center" />
               </div>
             </div>
           )}
         </div>
 
-        <div className="form-actions">
-          <button type="submit" className="btn btn-primary">
+        <div className="flex gap-3 pt-4 border-t border-white/5">
+          <button type="submit" className="flex-1 font-bold rounded-xl px-6 py-3 text-sm text-hawk-bg bg-hawk-purple hover:bg-hawk-purple/90 transition-all duration-200 active:scale-[0.98]">
             {editandoId ? 'Salvar Alteração' : 'Adicionar Despesa'}
           </button>
           {editandoId && (
-            <button type="button" className="btn btn-secondary" onClick={cancelarEdicao}>Cancelar</button>
+            <button type="button" className="px-6 py-3 font-bold text-sm text-hawk-text bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors" onClick={cancelarEdicao}>Cancelar</button>
           )}
         </div>
       </form>
 
-      <div className="expense-list">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
-          <h3 className="section-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div className="space-y-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-white/5 pb-4">
+          <h3 className="text-xl font-bold text-hawk-text flex items-center gap-3">
             Despesas de {MESES[mesAtual]} {anoAtual}
-            <span className="badge-count">{despesasExibidas.length}</span>
+            <span className="bg-white/10 text-hawk-text px-2.5 py-0.5 rounded-full text-xs font-bold">{despesasExibidas.length}</span>
           </h3>
           
-          <div className="tab-nav" style={{ padding: 0, border: 'none', background: 'transparent' }}>
-            <button type="button" className={`tab-btn ${filtroNatureza === 'TODOS' ? 'tab-active' : ''}`} onClick={() => setFiltroNatureza('TODOS')}>
-              <span className="tab-label">Todas</span>
+          <div className="flex bg-hawk-input p-1 rounded-xl border border-glass-border">
+            <button 
+              type="button" 
+              className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${filtroNatureza === 'TODOS' ? 'bg-hawk-card text-hawk-text shadow' : 'text-hawk-muted hover:text-hawk-text'}`} 
+              onClick={() => setFiltroNatureza('TODOS')}
+            >
+              Todas
             </button>
-            <button type="button" className={`tab-btn ${filtroNatureza === 'EMPRESA' ? 'tab-active' : ''}`} onClick={() => setFiltroNatureza('EMPRESA')}>
-              <span className="tab-icon">🏢</span> <span className="tab-label">Empresa</span>
+            <button 
+              type="button" 
+              className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${filtroNatureza === 'EMPRESA' ? 'bg-hawk-card text-hawk-purple shadow' : 'text-hawk-muted hover:text-hawk-text'}`} 
+              onClick={() => setFiltroNatureza('EMPRESA')}
+            >
+              <span>🏢</span> Empresa
             </button>
-            <button type="button" className={`tab-btn ${filtroNatureza === 'PESSOAL' ? 'tab-active' : ''}`} onClick={() => setFiltroNatureza('PESSOAL')}>
-              <span className="tab-icon">👤</span> <span className="tab-label">Pessoal</span>
+            <button 
+              type="button" 
+              className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${filtroNatureza === 'PESSOAL' ? 'bg-hawk-card text-hawk-blue shadow' : 'text-hawk-muted hover:text-hawk-text'}`} 
+              onClick={() => setFiltroNatureza('PESSOAL')}
+            >
+              <span>👤</span> Pessoal
             </button>
           </div>
         </div>
 
         {despesasExibidas.length === 0 && (
-          <p className="empty-message">Nenhuma despesa registrada para este filtro neste mês.</p>
+          <div className="text-center p-8 bg-hawk-card rounded-2xl border border-glass-border border-dashed">
+            <p className="text-hawk-muted text-sm italic">Nenhuma despesa registrada para este filtro neste mês.</p>
+          </div>
         )}
 
-        {despesasExibidas.map((d) => {
-          const pago = isPago(d);
-          const isRecorrente = d.recorrente !== false;
-          
-          let tagNaturezaCor = d.natureza === 'EMPRESA' ? '#a29bfe' : '#74b9ff';
-          let tagNaturezaIcone = d.natureza === 'EMPRESA' ? '🏢' : '👤';
-          if (d.isEsposa) { tagNaturezaCor = '#fd79a8'; tagNaturezaIcone = '👩'; }
+        <div className="grid gap-3">
+          {despesasExibidas.map((d) => {
+            const pago = isPago(d);
+            const isRecorrente = d.recorrente !== false;
+            
+            let tagNaturezaCor = d.natureza === 'EMPRESA' ? '#a29bfe' : '#74b9ff';
+            let tagNaturezaIcone = d.natureza === 'EMPRESA' ? '🏢' : '👤';
+            if (d.isEsposa) { tagNaturezaCor = '#fd79a8'; tagNaturezaIcone = '👩'; }
 
-          return (
-            <div key={d.id} className={`expense-item glass-card${pago ? ' expense-paid' : ''}`}>
-              <div className="expense-info">
-                <div className="expense-header-row">
-                  <span className="expense-descricao">
-                    {d.descricao}
-                    {isRecorrente && <span className="badge-recorrente" title="Conta recorrente">🔁</span>}
-                  </span>
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <span className="expense-categoria-badge" style={{ backgroundColor: mapaCores[d.categoria] || '#b2bec3' }}>
-                      {mapaLabels[d.categoria] || d.categoria}
+            return (
+              <div key={d.id} className={`flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 p-4 rounded-2xl border transition-all duration-300 ${pago ? 'bg-hawk-green/5 border-hawk-green/20' : 'bg-hawk-card border-glass-border hover:border-hawk-purple/30 shadow-card'}`}>
+                <div className="flex-1 flex flex-col gap-2">
+                  <div className="flex items-start md:items-center justify-between md:justify-start gap-3">
+                    <span className="font-bold text-hawk-text text-base flex items-center gap-2">
+                      {d.descricao}
+                      {isRecorrente && <span title="Conta recorrente" className="text-xs opacity-70">🔁</span>}
                     </span>
-                    <span className="expense-categoria-badge" style={{ backgroundColor: tagNaturezaCor, color: '#111' }}>
-                      {tagNaturezaIcone} {d.natureza === 'EMPRESA' ? 'Empresa' : (d.isEsposa ? 'Esposa' : 'Pessoal')}
-                    </span>
+                    <div className="flex gap-2">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold text-[#111]" style={{ backgroundColor: mapaCores[d.categoria] || '#b2bec3' }}>
+                        {mapaLabels[d.categoria] || d.categoria}
+                      </span>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold text-[#111] flex items-center gap-1" style={{ backgroundColor: tagNaturezaCor }}>
+                        <span>{tagNaturezaIcone}</span> {d.natureza === 'EMPRESA' ? 'Empresa' : (d.isEsposa ? 'Esposa' : 'Pessoal')}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-4 text-sm">
+                    <span className="font-black tracking-tight" style={{ color: pago ? '#00d4aa' : '#fff' }}>{formatarMoeda(d.valor)}</span>
+                    {d.vencimento && (
+                      <span className="text-hawk-muted text-xs">Vence dia {d.vencimento}</span>
+                    )}
+                    {pago ? (
+                      <span className="px-2 py-0.5 bg-hawk-green/20 text-hawk-green rounded font-bold text-[10px] border border-hawk-green/30">Pago</span>
+                    ) : (
+                      <span className="px-2 py-0.5 bg-hawk-red/20 text-hawk-red rounded font-bold text-[10px] border border-hawk-red/30">Pendente</span>
+                    )}
                   </div>
                 </div>
-                <div className="expense-details-row">
-                  <span className="expense-valor">{formatarMoeda(d.valor)}</span>
-                  {d.vencimento && (
-                    <span className="expense-vencimento">Vence dia {d.vencimento}</span>
-                  )}
-                  {pago && <span className="expense-status-tag tag-pago">Pago</span>}
-                  {!pago && <span className="expense-status-tag tag-pendente">Pendente</span>}
+
+                <div className="flex items-center gap-2 border-t md:border-t-0 md:border-l border-white/5 pt-3 md:pt-0 md:pl-4">
+                  <button
+                    className={`flex-1 md:flex-none flex items-center justify-center h-10 px-4 rounded-xl font-bold text-sm transition-all active:scale-95 border ${pago ? 'bg-hawk-input border-hawk-green/30 text-hawk-green hover:bg-hawk-green/10' : 'bg-hawk-green/10 border-hawk-green/30 text-hawk-green hover:bg-hawk-green/20'}`}
+                    onClick={() => acionarPagamento(d)}
+                    title={pago ? 'Desfazer Pagamento' : 'Pagar com Automação'}
+                  >
+                    {pago ? '↩ Desfazer' : '✓ Pagar'}
+                  </button>
+                  <button 
+                    className="w-10 h-10 rounded-xl bg-white/5 text-hawk-blue border border-white/10 flex items-center justify-center transition-colors hover:bg-hawk-blue/10 active:scale-95" 
+                    onClick={() => iniciarEdicao(d)} 
+                    title="Editar"
+                  >
+                    ✎
+                  </button>
+                  <button 
+                    className="w-10 h-10 rounded-xl bg-white/5 text-hawk-red border border-white/10 flex items-center justify-center transition-colors hover:bg-hawk-red/10 active:scale-95" 
+                    onClick={() => excluir(d.id)} 
+                    title="Excluir"
+                  >
+                    ✕
+                  </button>
                 </div>
               </div>
-
-              <div className="expense-actions">
-                <button
-                  className={`action-btn${pago ? ' action-undo' : ' action-check'}`}
-                  onClick={() => acionarPagamento(d)}
-                  title={pago ? 'Desfazer Pagamento' : 'Pagar com Automação'}
-                >
-                  {pago ? '↩' : '✓'}
-                </button>
-                <button className="action-btn action-edit" onClick={() => iniciarEdicao(d)} title="Editar">✎</button>
-                <button className="action-btn action-delete" onClick={() => excluir(d.id)} title="Excluir">✕</button>
-              </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
       {dadosGrafico.length > 0 && (
-        <div className="chart-section glass-card">
-          <h3 className="section-title">Distribuição por Categoria</h3>
+        <div className="rounded-2xl border border-glass-border bg-hawk-card p-6 shadow-card">
+          <h3 className="text-lg font-bold text-hawk-text mb-4 border-b border-white/5 pb-3">Distribuição por Categoria</h3>
           <ResponsiveContainer width="100%" height={360}>
             <PieChart>
               <Pie data={dadosGrafico} cx="50%" cy="50%" outerRadius={120} innerRadius={50} dataKey="value" label={renderLabelPie} labelLine={false} paddingAngle={2} strokeWidth={0}>

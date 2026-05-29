@@ -55,48 +55,36 @@ export default function ObservacoesTab() {
   // Firestore listener
   useEffect(() => {
     if (!usuario) return;
-
     const ref = collection(db, 'usuarios', usuario.uid, 'observacoes');
     const q = query(ref, orderBy('criadoEm', 'desc'));
-
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const dados = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
       setNotas(dados);
     });
-
     return () => unsubscribe();
   }, [usuario]);
 
-  // ─── Verificador Diário de Lembretes (EmailJS) ───
+  // Lembretes Diários (EmailJS)
   useEffect(() => {
     if (!usuario || notas.length === 0 || lembretesVerificados.current) return;
-    
     const verificarEEnviarLembretes = async () => {
       lembretesVerificados.current = true;
       const hojeStr = new Date().toISOString().split('T')[0];
-      
-      // Data de amanhã
       const amanhaDate = new Date();
       amanhaDate.setDate(amanhaDate.getDate() + 1);
       const amanhaStr = amanhaDate.toISOString().split('T')[0];
 
       for (const nota of notas) {
         if (nota.tag === 'Lembrete' && nota.lembreteData && !nota.notificado) {
-          
           const isHoje = nota.lembreteData === hojeStr;
           const isAmanha = nota.lembreteData === amanhaStr;
           
           if (isHoje || isAmanha) {
             try {
-              // ATENÇÃO: Substitua pelos seus IDs reais do EmailJS (conta gratuita em emailjs.com)
               const serviceId = 'service_1frjvqc'; 
               const templateId = 'template_xfhgeoe'; 
               const publicKey = 't13na8-V7eKws36yp';
-              
-              if (serviceId === 'YOUR_SERVICE_ID') {
-                 console.log('EmailJS não configurado. Lembrete que seria enviado:', nota.titulo);
-                 continue;
-              }
+              if (serviceId === 'YOUR_SERVICE_ID') continue;
 
               await emailjs.send(serviceId, templateId, {
                 to_name: usuario.displayName,
@@ -108,14 +96,10 @@ export default function ObservacoesTab() {
                 tipo: isHoje ? 'HOJE' : 'AMANHÃ'
               }, publicKey);
 
-              // Marcar como notificado se for o lembrete de HOJE
-              // (deixa o de amanhã livre para ser enviado amanhã também, se quiser)
               if (isHoje) {
                 const docRef = doc(db, 'usuarios', usuario.uid, 'observacoes', nota.id);
                 await updateDoc(docRef, { notificado: true });
               }
-              
-              console.log('Lembrete enviado com sucesso:', nota.titulo);
             } catch (err) {
               console.error('Erro ao enviar email de lembrete:', err);
             }
@@ -123,20 +107,12 @@ export default function ObservacoesTab() {
         }
       }
     };
-
     verificarEEnviarLembretes();
   }, [notas, usuario]);
 
-  // Filtered & sorted notes
   const notasFiltradas = useMemo(() => {
     let resultado = [...notas];
-
-    // Tag filter
-    if (filtroTag !== 'Todas') {
-      resultado = resultado.filter((n) => n.tag === filtroTag);
-    }
-
-    // Text search
+    if (filtroTag !== 'Todas') resultado = resultado.filter((n) => n.tag === filtroTag);
     if (busca.trim()) {
       const termo = busca.toLowerCase().trim();
       resultado = resultado.filter((n) => {
@@ -145,8 +121,6 @@ export default function ObservacoesTab() {
         return tituloMatch || textoMatch;
       });
     }
-
-    // Sort: pinned first, then by criadoEm desc
     resultado.sort((a, b) => {
       if (a.fixado && !b.fixado) return -1;
       if (!a.fixado && b.fixado) return 1;
@@ -154,11 +128,9 @@ export default function ObservacoesTab() {
       const tsB = b.criadoEm?.seconds || 0;
       return tsB - tsA;
     });
-
     return resultado;
   }, [notas, filtroTag, busca]);
 
-  // Reset form
   function limparFormulario() {
     setTitulo('');
     setTexto('');
@@ -168,41 +140,33 @@ export default function ObservacoesTab() {
     setEditandoId(null);
   }
 
-  // Save or update
   async function handleSalvar(e) {
     e.preventDefault();
     if (!texto.trim() || !tag) return;
-
     const ref = collection(db, 'usuarios', usuario.uid, 'observacoes');
-
+    const notaData = {
+      titulo: titulo.trim(),
+      texto: texto.trim(),
+      tag,
+      lembreteData: tag === 'Lembrete' ? lembreteData : null,
+      lembreteHora: tag === 'Lembrete' ? lembreteHora : null,
+    };
+    
     if (editandoId) {
       const docRef = doc(db, 'usuarios', usuario.uid, 'observacoes', editandoId);
-      await updateDoc(docRef, {
-        titulo: titulo.trim(),
-        texto: texto.trim(),
-        tag,
-        lembreteData: tag === 'Lembrete' ? lembreteData : null,
-        lembreteHora: tag === 'Lembrete' ? lembreteHora : null,
-        editadoEm: serverTimestamp()
-      });
+      await updateDoc(docRef, { ...notaData, editadoEm: serverTimestamp() });
     } else {
       await addDoc(ref, {
-        titulo: titulo.trim(),
-        texto: texto.trim(),
-        tag,
-        lembreteData: tag === 'Lembrete' ? lembreteData : null,
-        lembreteHora: tag === 'Lembrete' ? lembreteHora : null,
+        ...notaData,
         fixado: false,
         notificado: false,
         criadoEm: serverTimestamp(),
         editadoEm: null
       });
     }
-
     limparFormulario();
   }
 
-  // Edit
   function handleEditar(nota) {
     setTitulo(nota.titulo || '');
     setTexto(nota.texto || '');
@@ -213,7 +177,6 @@ export default function ObservacoesTab() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  // Delete
   async function handleExcluir(id) {
     if (!window.confirm('Tem certeza que deseja excluir esta nota?')) return;
     const docRef = doc(db, 'usuarios', usuario.uid, 'observacoes', id);
@@ -221,27 +184,28 @@ export default function ObservacoesTab() {
     if (editandoId === id) limparFormulario();
   }
 
-  // Toggle pin
   async function handleFixar(nota) {
     const docRef = doc(db, 'usuarios', usuario.uid, 'observacoes', nota.id);
     await updateDoc(docRef, { fixado: !nota.fixado });
   }
 
   return (
-    <div className="observacoes-tab">
-      {/* ── Form ── */}
-      <div className="card" style={{ marginBottom: '1.5rem' }}>
-        <h2 style={{ fontFamily: 'Syne, sans-serif', marginBottom: '1rem' }}>
-          {editandoId ? '✎ Editar Nota' : '📝 Nova Nota'}
+    <div className="max-w-4xl mx-auto px-3 md:px-6 py-4 space-y-6 animate-fade-in">
+      
+      {/* HEADER & FORM */}
+      <div className="rounded-2xl border border-glass-border bg-hawk-card p-6 shadow-card">
+        <h2 className="text-xl font-bold text-hawk-text mb-6 flex items-center gap-2">
+          <span>{editandoId ? '✎' : '📝'}</span> 
+          {editandoId ? 'Editar Nota' : 'Nova Nota'}
         </h2>
 
-        <form onSubmit={handleSalvar} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        <form onSubmit={handleSalvar} className="space-y-4">
           <input
             type="text"
             placeholder="Título (opcional)"
             value={titulo}
             onChange={(e) => setTitulo(e.target.value)}
-            className="input"
+            className="w-full bg-hawk-input border border-glass-border rounded-xl px-4 py-3 text-sm text-hawk-text focus:outline-none focus:ring-1 focus:border-hawk-purple/50 transition-colors"
           />
 
           <textarea
@@ -250,20 +214,17 @@ export default function ObservacoesTab() {
             onChange={(e) => setTexto(e.target.value)}
             required
             rows={5}
-            className="input"
-            style={{ resize: 'vertical', minHeight: '100px', fontFamily: 'DM Sans, sans-serif' }}
+            className="w-full bg-hawk-input border border-glass-border rounded-xl px-4 py-3 text-sm text-hawk-text focus:outline-none focus:ring-1 focus:border-hawk-purple/50 transition-colors resize-y min-h-[100px]"
           />
 
           <select
             value={tag}
             onChange={(e) => setTag(e.target.value)}
             required
-            className="input"
-            style={{
-              color: tag ? TAG_COLOR_MAP[tag] : undefined
-            }}
+            className="w-full bg-hawk-input border border-glass-border rounded-xl px-4 py-3 text-sm text-hawk-text focus:outline-none focus:ring-1 focus:border-hawk-purple/50 transition-colors cursor-pointer appearance-none"
+            style={{ color: tag ? TAG_COLOR_MAP[tag] : undefined }}
           >
-            <option value="">Selecione uma tag *</option>
+            <option value="" className="text-hawk-muted">Selecione uma tag *</option>
             {TAGS.map((t) => (
               <option key={t.label} value={t.label} style={{ color: t.color }}>
                 {t.label}
@@ -271,41 +232,37 @@ export default function ObservacoesTab() {
             ))}
           </select>
 
-          {/* Campos condicionais para Lembrete */}
+          {/* Campos Lembrete */}
           {tag === 'Lembrete' && (
-            <div style={{ display: 'flex', gap: '1rem', background: 'rgba(255, 217, 61, 0.05)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255, 217, 61, 0.2)' }}>
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ fontSize: '0.8rem', color: '#ffd93d' }}>📅 Data do Aviso (E-mail)</label>
+            <div className="flex gap-4 p-4 rounded-xl bg-hawk-input/50 border border-yellow-500/20">
+              <div className="flex-1 space-y-1">
+                <label className="text-xs font-semibold text-yellow-500">📅 Data do Aviso (E-mail)</label>
                 <input
                   type="date"
                   value={lembreteData}
                   onChange={(e) => setLembreteData(e.target.value)}
-                  className="input"
+                  className="w-full bg-hawk-bg border border-glass-border rounded-lg px-3 py-2 text-sm text-hawk-text focus:outline-none focus:border-yellow-500/50"
                   required
                 />
               </div>
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ fontSize: '0.8rem', color: '#ffd93d' }}>⏰ Hora (Opcional)</label>
+              <div className="flex-1 space-y-1">
+                <label className="text-xs font-semibold text-yellow-500">⏰ Hora (Opcional)</label>
                 <input
                   type="time"
                   value={lembreteHora}
                   onChange={(e) => setLembreteHora(e.target.value)}
-                  className="input"
+                  className="w-full bg-hawk-bg border border-glass-border rounded-lg px-3 py-2 text-sm text-hawk-text focus:outline-none focus:border-yellow-500/50"
                 />
               </div>
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: '0.75rem', marginTop: '8px' }}>
-            <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
+          <div className="flex gap-3 pt-2">
+            <button type="submit" className="flex-1 bg-hawk-purple hover:bg-hawk-purple/90 text-white font-semibold py-3 px-6 rounded-xl transition-all shadow-[0_0_15px_rgba(108,92,231,0.2)] active:scale-95">
               {editandoId ? 'Atualizar Nota' : 'Salvar Nota'}
             </button>
             {editandoId && (
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={limparFormulario}
-              >
+              <button type="button" onClick={limparFormulario} className="flex-1 bg-hawk-card border border-glass-border hover:bg-glass-hover text-hawk-text font-semibold py-3 px-6 rounded-xl transition-all active:scale-95">
                 Cancelar
               </button>
             )}
@@ -313,192 +270,95 @@ export default function ObservacoesTab() {
         </form>
       </div>
 
-      {/* ── Search ── */}
-      <div style={{ marginBottom: '1rem' }}>
+      {/* SEARCH & FILTERS */}
+      <div className="space-y-4">
         <input
           type="text"
           placeholder="🔍 Buscar notas..."
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
-          className="input"
+          className="w-full bg-hawk-card border border-glass-border rounded-xl px-4 py-3 text-sm text-hawk-text focus:outline-none focus:ring-1 focus:border-hawk-purple/50 shadow-card"
         />
-      </div>
 
-      {/* ── Tag Filters ── */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.5rem' }}>
-        <button
-          className="btn btn-sm"
-          onClick={() => setFiltroTag('Todas')}
-          style={{
-            background: filtroTag === 'Todas' ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)',
-            border: filtroTag === 'Todas' ? '1px solid rgba(255,255,255,0.3)' : '1px solid rgba(255,255,255,0.08)',
-            color: '#fff',
-            padding: '0.35rem 0.85rem',
-            borderRadius: '20px',
-            cursor: 'pointer',
-            fontSize: '0.85rem',
-            fontWeight: filtroTag === 'Todas' ? 600 : 400,
-            transition: 'all 0.2s ease'
-          }}
-        >
-          Todas
-        </button>
-        {TAGS.map((t) => (
+        <div className="flex flex-wrap gap-2">
           <button
-            key={t.label}
-            className="btn btn-sm"
-            onClick={() => setFiltroTag(t.label)}
-            style={{
-              background: filtroTag === t.label ? t.color + '33' : 'rgba(255,255,255,0.05)',
-              border: filtroTag === t.label ? `1px solid ${t.color}` : '1px solid rgba(255,255,255,0.08)',
-              color: filtroTag === t.label ? t.color : 'rgba(255,255,255,0.6)',
-              padding: '0.35rem 0.85rem',
-              borderRadius: '20px',
-              cursor: 'pointer',
-              fontSize: '0.85rem',
-              fontWeight: filtroTag === t.label ? 600 : 400,
-              transition: 'all 0.2s ease'
-            }}
+            onClick={() => setFiltroTag('Todas')}
+            className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all border ${filtroTag === 'Todas' ? 'bg-white/10 text-white border-white/20' : 'bg-transparent text-hawk-muted border-glass-border hover:bg-white/5'}`}
           >
-            {t.label}
+            Todas
           </button>
-        ))}
+          {TAGS.map((t) => (
+            <button
+              key={t.label}
+              onClick={() => setFiltroTag(t.label)}
+              className="px-4 py-1.5 rounded-full text-xs font-semibold transition-all border"
+              style={{
+                background: filtroTag === t.label ? t.color + '22' : 'transparent',
+                borderColor: filtroTag === t.label ? t.color : 'rgba(255,255,255,0.08)',
+                color: filtroTag === t.label ? t.color : 'rgba(255,255,255,0.5)',
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* ── Notes List ── */}
+      {/* NOTES LIST */}
       {notasFiltradas.length === 0 ? (
-        <div className="card" style={{ textAlign: 'center', padding: '2rem', color: 'rgba(255,255,255,0.4)' }}>
-          <p style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📋</p>
-          <p>Nenhuma nota encontrada.</p>
+        <div className="rounded-2xl border border-glass-border border-dashed bg-hawk-card p-10 text-center shadow-card opacity-80">
+          <p className="text-4xl mb-3">📋</p>
+          <p className="text-hawk-muted text-sm font-medium">Nenhuma nota encontrada.</p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {notasFiltradas.map((nota) => {
             const tagColor = TAG_COLOR_MAP[nota.tag] || '#888';
 
             return (
-              <div
-                key={nota.id}
-                className="card"
-                style={{
-                  borderLeft: `3px solid ${tagColor}`,
-                  position: 'relative'
-                }}
-              >
-                {/* Header row */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0 }}>
-                    {nota.fixado && (
-                      <span style={{ fontSize: '0.9rem' }} title="Fixada">📌</span>
-                    )}
+              <div key={nota.id} className="rounded-2xl border border-glass-border bg-hawk-card p-5 shadow-card flex flex-col hover:border-white/10 transition-colors" style={{ borderLeftColor: tagColor, borderLeftWidth: '4px' }}>
+                
+                <div className="flex justify-between items-start mb-3 gap-2">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    {nota.fixado && <span className="text-sm" title="Fixada">📌</span>}
                     {nota.titulo && (
-                      <span style={{ fontWeight: 700, fontSize: '1.05rem', fontFamily: 'Syne, sans-serif', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {nota.titulo}
-                      </span>
+                      <h3 className="font-bold text-hawk-text truncate flex-1">{nota.titulo}</h3>
                     )}
                   </div>
-
-                  {/* Tag badge */}
-                  <span
-                    style={{
-                      background: tagColor + '22',
-                      color: tagColor,
-                      border: `1px solid ${tagColor}55`,
-                      padding: '0.15rem 0.6rem',
-                      borderRadius: '12px',
-                      fontSize: '0.75rem',
-                      fontWeight: 600,
-                      whiteSpace: 'nowrap',
-                      flexShrink: 0
-                    }}
-                  >
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold shrink-0 border" style={{ backgroundColor: tagColor + '15', color: tagColor, borderColor: tagColor + '30' }}>
                     {nota.tag}
                   </span>
                 </div>
 
-                {/* Badge visual de Lembrete Data */}
                 {nota.tag === 'Lembrete' && nota.lembreteData && (
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(255, 217, 61, 0.1)', border: '1px solid rgba(255, 217, 61, 0.3)', padding: '4px 10px', borderRadius: '20px', marginBottom: '12px' }}>
-                    <span style={{ fontSize: '0.85rem' }}>⏰</span>
-                    <span style={{ fontSize: '0.8rem', color: '#ffd93d', fontWeight: 600 }}>
+                  <div className="inline-flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/20 px-3 py-1.5 rounded-lg mb-3 self-start">
+                    <span className="text-xs">⏰</span>
+                    <span className="text-[11px] font-bold text-yellow-500">
                       Aviso: {new Date(nota.lembreteData + 'T12:00:00').toLocaleDateString('pt-BR')} 
                       {nota.lembreteHora && ` às ${nota.lembreteHora}`}
                     </span>
-                    {nota.notificado && <span style={{ fontSize: '0.7rem', color: '#00d4aa', marginLeft: '4px' }}>(Enviado)</span>}
+                    {nota.notificado && <span className="text-[10px] text-hawk-green ml-1">(Enviado)</span>}
                   </div>
                 )}
 
-                {/* Texto */}
-                <p style={{
-                  whiteSpace: 'pre-wrap',
-                  color: 'rgba(255,255,255,0.75)',
-                  lineHeight: 1.6,
-                  marginBottom: '0.75rem',
-                  wordBreak: 'break-word'
-                }}>
+                <p className="text-sm text-hawk-text/80 whitespace-pre-wrap break-words leading-relaxed mb-4 flex-1">
                   {nota.texto}
                 </p>
 
-                {/* Footer */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-                  {/* Dates */}
-                  <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.35)' }}>
+                <div className="flex justify-between items-center mt-auto pt-3 border-t border-glass-border">
+                  <div className="text-[10px] text-hawk-dim flex flex-col">
                     <span>Criado: {formatTimestamp(nota.criadoEm)}</span>
-                    {nota.editadoEm && nota.editadoEm.seconds && (
-                      <span style={{ marginLeft: '0.75rem' }}>
-                        Editado: {formatTimestamp(nota.editadoEm)}
-                      </span>
-                    )}
+                    {nota.editadoEm?.seconds && <span>Editado: {formatTimestamp(nota.editadoEm)}</span>}
                   </div>
 
-                  {/* Action buttons */}
-                  <div style={{ display: 'flex', gap: '0.4rem' }}>
-                    <button
-                      onClick={() => handleFixar(nota)}
-                      title={nota.fixado ? 'Desafixar' : 'Fixar'}
-                      style={{
-                        background: nota.fixado ? 'rgba(255,217,61,0.15)' : 'rgba(255,255,255,0.05)',
-                        border: nota.fixado ? '1px solid rgba(255,217,61,0.3)' : '1px solid rgba(255,255,255,0.08)',
-                        color: nota.fixado ? '#ffd93d' : 'rgba(255,255,255,0.5)',
-                        borderRadius: '8px',
-                        padding: '0.3rem 0.55rem',
-                        cursor: 'pointer',
-                        fontSize: '0.85rem',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
+                  <div className="flex gap-2">
+                    <button onClick={() => handleFixar(nota)} title={nota.fixado ? 'Desafixar' : 'Fixar'} className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors border" style={{ background: nota.fixado ? 'rgba(255,217,61,0.1)' : 'transparent', borderColor: nota.fixado ? 'rgba(255,217,61,0.2)' : 'rgba(255,255,255,0.05)', color: nota.fixado ? '#ffd93d' : 'rgba(255,255,255,0.4)' }}>
                       📌
                     </button>
-                    <button
-                      onClick={() => handleEditar(nota)}
-                      title="Editar"
-                      style={{
-                        background: 'rgba(108,92,231,0.1)',
-                        border: '1px solid rgba(108,92,231,0.25)',
-                        color: '#6c5ce7',
-                        borderRadius: '8px',
-                        padding: '0.3rem 0.55rem',
-                        cursor: 'pointer',
-                        fontSize: '0.85rem',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
+                    <button onClick={() => handleEditar(nota)} title="Editar" className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors bg-hawk-purple/10 hover:bg-hawk-purple/20 border border-hawk-purple/20 text-hawk-purple">
                       ✎
                     </button>
-                    <button
-                      onClick={() => handleExcluir(nota.id)}
-                      title="Excluir"
-                      style={{
-                        background: 'rgba(255,107,107,0.1)',
-                        border: '1px solid rgba(255,107,107,0.25)',
-                        color: '#ff6b6b',
-                        borderRadius: '8px',
-                        padding: '0.3rem 0.55rem',
-                        cursor: 'pointer',
-                        fontSize: '0.85rem',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
+                    <button onClick={() => handleExcluir(nota.id)} title="Excluir" className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors bg-hawk-red/10 hover:bg-hawk-red/20 border border-hawk-red/20 text-hawk-red">
                       ✕
                     </button>
                   </div>

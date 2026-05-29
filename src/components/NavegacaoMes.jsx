@@ -45,10 +45,22 @@ export default function NavegacaoMes({
     : `${MESES[mesAtual]} ${anoAtual}`;
 
   return (
-    <div className="month-navigation">
-      <button className="month-nav-btn" onClick={mesAnterior} aria-label="Mês anterior">‹</button>
-      <h2 className="month-title">{label}</h2>
-      <button className="month-nav-btn" onClick={mesSeguinte} aria-label="Próximo mês">›</button>
+    <div className="flex items-center justify-between bg-hawk-card border border-glass-border rounded-2xl p-4 shadow-card mb-6 animate-fade-in">
+      <button 
+        className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 text-hawk-muted hover:text-hawk-text transition-colors border border-white/5 active:scale-95" 
+        onClick={mesAnterior} 
+        aria-label="Mês anterior"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <h2 className="text-lg font-bold text-hawk-text tracking-tight capitalize">{label}</h2>
+      <button 
+        className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 text-hawk-muted hover:text-hawk-text transition-colors border border-white/5 active:scale-95" 
+        onClick={mesSeguinte} 
+        aria-label="Próximo mês"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
     </div>
   );
 }

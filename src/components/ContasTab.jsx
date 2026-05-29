@@ -120,10 +120,15 @@ export default function ContasTab() {
   const progressoPessoalPct = Math.min(100, Math.round((saldoPessoal / custoFixoMensalPessoal) * 100)) || 0;
 
   return (
-    <div className="tab-content">
-      <div className="dashboard-header" style={{ textAlign: 'center', marginBottom: '32px' }}>
-        <h2 className="dashboard-title">📈 Termômetro Financeiro</h2>
-        <p style={{ color: 'var(--text-secondary)' }}>Esta aba unifica todos os seus registros de Despesas Fixas e Variáveis.</p>
+    <div className="max-w-4xl mx-auto px-3 md:px-6 py-4 space-y-6 animate-fade-in">
+      {/* Header */}
+      <div className="text-center space-y-2 mb-6">
+        <h2 className="text-2xl font-bold text-hawk-text flex items-center justify-center gap-2">
+          <span>📈</span> Termômetro Financeiro
+        </h2>
+        <p className="text-sm text-hawk-muted">
+          Esta aba unifica todos os seus registros de Despesas Fixas e Variáveis.
+        </p>
       </div>
 
       {/* Navegação de Mês */}
@@ -135,92 +140,100 @@ export default function ContasTab() {
       />
 
       {/* VISOR PAZ DE ESPÍRITO (O Grande Visor) */}
-      <div className="section-card" style={{ textAlign: 'center', marginBottom: '24px', marginTop: '24px', background: saldoLivreReal >= 0 ? 'linear-gradient(145deg, rgba(0,212,170,0.1), rgba(22,22,35,0.8))' : 'linear-gradient(145deg, rgba(255,107,107,0.1), rgba(22,22,35,0.8))' }}>
-        <h3 style={{ margin: '0 0 12px 0', fontSize: '1rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+      <div className={`rounded-3xl border p-8 text-center shadow-card-hover transition-all duration-300
+        ${saldoLivreReal >= 0 
+          ? 'border-hawk-green/30 bg-gradient-to-br from-hawk-green/10 to-hawk-card/80' 
+          : 'border-hawk-red/30 bg-gradient-to-br from-hawk-red/10 to-hawk-card/80'}`
+      }>
+        <h3 className="text-sm font-semibold uppercase tracking-widest text-hawk-muted mb-4">
           Se você pagar TUDO do mês de {MESES[mesAtual]} hoje, te sobrariam:
         </h3>
-        <div style={{ fontSize: '3rem', fontWeight: 800, color: saldoLivreReal >= 0 ? '#00d4aa' : '#ff6b6b', textShadow: saldoLivreReal >= 0 ? '0 0 20px rgba(0,212,170,0.4)' : '0 0 20px rgba(255,107,107,0.4)' }}>
+        <div className={`text-5xl md:text-6xl font-black tracking-tight mb-4
+          ${saldoLivreReal >= 0 
+            ? 'text-hawk-green drop-shadow-[0_0_15px_rgba(0,212,170,0.3)]' 
+            : 'text-hawk-red drop-shadow-[0_0_15px_rgba(255,107,107,0.3)]'}`
+        }>
           {formatarMoeda(saldoLivreReal)}
         </div>
-        <p style={{ margin: '12px 0 0 0', fontSize: '0.9rem', color: 'var(--text-primary)' }}>
-          (Total em Dinheiro Atual: {formatarMoeda(dinheiroGeral)} | Total Devendo: {formatarMoeda(devendoGeral)})
+        <p className="text-sm text-hawk-text/80 font-medium bg-black/20 inline-block px-4 py-2 rounded-full border border-white/5">
+          (Total em Dinheiro Atual: <strong className="text-hawk-text">{formatarMoeda(dinheiroGeral)}</strong> | Total Devendo: <strong className="text-hawk-text">{formatarMoeda(devendoGeral)}</strong>)
         </p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginBottom: '32px' }}>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         
         {/* BARRA EMPRESA */}
-        <div className="section-card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '16px' }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: '1.2rem' }}>🏢 Saúde da Empresa</h3>
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Custos vs Caixinhas da Empresa</span>
-            </div>
+        <div className="rounded-2xl border border-glass-border bg-hawk-card p-6 shadow-card flex flex-col hover:border-hawk-purple/30 transition-colors duration-300">
+          <div className="mb-6">
+            <h3 className="text-xl font-bold text-hawk-text flex items-center gap-2">
+              <span>🏢</span> Saúde da Empresa
+            </h3>
+            <span className="text-xs text-hawk-muted font-medium">Custos vs Caixinhas da Empresa</span>
           </div>
           
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.9rem' }}>
-            <span>Saldo Atual: <strong>{formatarMoeda(saldoEmpresa)}</strong></span>
-            <span>Meta de Custos: <strong>{formatarMoeda(totalEmpresa)}</strong></span>
+          <div className="flex justify-between items-end mb-2 text-sm">
+            <span className="text-hawk-muted">Saldo Atual: <strong className="text-hawk-text text-base">{formatarMoeda(saldoEmpresa)}</strong></span>
+            <span className="text-hawk-muted">Meta: <strong className="text-hawk-text text-base">{formatarMoeda(totalEmpresa)}</strong></span>
           </div>
 
-          <div style={{ width: '100%', height: '24px', background: 'rgba(255,255,255,0.05)', borderRadius: '12px', overflow: 'hidden', position: 'relative' }}>
-            <div style={{
-              width: `${progressoEmpresaPct}%`, height: '100%',
-              background: progressoEmpresaPct >= 100 ? 'linear-gradient(90deg, #00b894, #00d4aa)' : 'linear-gradient(90deg, #ff6b6b, #ffd93d)',
-              transition: 'width 1s ease-in-out',
-              boxShadow: progressoEmpresaPct >= 100 ? '0 0 15px #00d4aa' : 'none'
-            }} />
+          <div className="h-4 w-full bg-white/5 rounded-full overflow-hidden border border-white/5 mb-3">
+            <div 
+              className={`h-full transition-all duration-1000 rounded-full ${progressoEmpresaPct >= 100 ? 'bg-gradient-to-r from-hawk-green to-[#00b894] shadow-[0_0_15px_#00d4aa]' : 'bg-gradient-to-r from-hawk-red to-hawk-yellow'}`}
+              style={{ width: `${progressoEmpresaPct}%` }} 
+            />
           </div>
-          <div style={{ marginTop: '12px', fontSize: '0.85rem', textAlign: 'center' }}>
+          
+          <div className="text-xs text-center font-medium mb-6">
             {progressoEmpresaPct >= 100 ? (
-              <span style={{ color: '#00d4aa', fontWeight: 'bold' }}>✅ Custos Operacionais 100% garantidos.</span>
+              <span className="text-hawk-green">✅ Custos Operacionais 100% garantidos.</span>
             ) : (
-              <span style={{ color: '#ff6b6b' }}>Ainda faltam {formatarMoeda(totalEmpresa - saldoEmpresa)} para empatar os custos.</span>
+              <span className="text-hawk-red">Ainda faltam <strong className="font-bold">{formatarMoeda(totalEmpresa - saldoEmpresa)}</strong> para empatar os custos.</span>
             )}
           </div>
 
           {/* Módulo Visionário */}
-          <div style={{ marginTop: '20px', padding: '12px', background: 'rgba(108, 92, 231, 0.1)', borderRadius: '12px', border: '1px solid rgba(108, 92, 231, 0.2)' }}>
-            <span style={{ fontSize: '1.2rem', marginRight: '8px' }}>🔮</span>
-            <span style={{ fontSize: '0.9rem' }}>
-              <strong>Módulo Visionário:</strong> Com os fundos atuais da Empresa, você consegue rodar com todos os custos fixos pagos por <strong style={{ color: '#a29bfe', fontSize: '1.1rem' }}>{mesesAdiantadosEmpresa} meses</strong> adiantados.
+          <div className="mt-auto rounded-xl p-4 bg-hawk-purple/10 border border-hawk-purple/20 flex gap-3 items-start">
+            <span className="text-xl leading-none">🔮</span>
+            <span className="text-sm text-hawk-text/90 leading-relaxed">
+              <strong>Módulo Visionário:</strong> Com os fundos atuais da Empresa, você consegue rodar com todos os custos fixos pagos por <strong className="text-hawk-purple text-base px-1">{mesesAdiantadosEmpresa} meses</strong> adiantados.
             </span>
           </div>
         </div>
 
         {/* BARRA PESSOAL */}
-        <div className="section-card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '16px' }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: '1.2rem' }}>👤 Saúde Pessoal</h3>
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Suas contas e da esposa vs Caixinhas Pessoais</span>
-            </div>
+        <div className="rounded-2xl border border-glass-border bg-hawk-card p-6 shadow-card flex flex-col hover:border-hawk-blue/30 transition-colors duration-300">
+          <div className="mb-6">
+            <h3 className="text-xl font-bold text-hawk-text flex items-center gap-2">
+              <span>👤</span> Saúde Pessoal
+            </h3>
+            <span className="text-xs text-hawk-muted font-medium">Suas contas e da esposa vs Caixinhas Pessoais</span>
           </div>
           
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.9rem' }}>
-            <span>Saldo Pessoal: <strong>{formatarMoeda(saldoPessoal)}</strong></span>
-            <span>Meta de Custos: <strong>{formatarMoeda(totalPessoal + totalEsposa)}</strong></span>
+          <div className="flex justify-between items-end mb-2 text-sm">
+            <span className="text-hawk-muted">Saldo Pessoal: <strong className="text-hawk-text text-base">{formatarMoeda(saldoPessoal)}</strong></span>
+            <span className="text-hawk-muted">Meta: <strong className="text-hawk-text text-base">{formatarMoeda(totalPessoal + totalEsposa)}</strong></span>
           </div>
 
-          <div style={{ width: '100%', height: '24px', background: 'rgba(255,255,255,0.05)', borderRadius: '12px', overflow: 'hidden', position: 'relative' }}>
-            <div style={{
-              width: `${progressoPessoalPct}%`, height: '100%',
-              background: progressoPessoalPct >= 100 ? 'linear-gradient(90deg, #0984e3, #6c5ce7)' : 'linear-gradient(90deg, #ff6b6b, #e17055)',
-              transition: 'width 1s ease-in-out',
-              boxShadow: progressoPessoalPct >= 100 ? '0 0 15px #6c5ce7' : 'none'
-            }} />
+          <div className="h-4 w-full bg-white/5 rounded-full overflow-hidden border border-white/5 mb-3">
+            <div 
+              className={`h-full transition-all duration-1000 rounded-full ${progressoPessoalPct >= 100 ? 'bg-gradient-to-r from-hawk-blue to-hawk-purple shadow-[0_0_15px_#6c5ce7]' : 'bg-gradient-to-r from-hawk-red to-[#e17055]'}`}
+              style={{ width: `${progressoPessoalPct}%` }} 
+            />
           </div>
-          <div style={{ marginTop: '12px', fontSize: '0.85rem', textAlign: 'center' }}>
+          
+          <div className="text-xs text-center font-medium mb-6">
             {progressoPessoalPct >= 100 ? (
-              <span style={{ color: '#0984e3', fontWeight: 'bold' }}>✅ A casa está totalmente blindada!</span>
+              <span className="text-hawk-blue">✅ A casa está totalmente blindada!</span>
             ) : (
-              <span style={{ color: '#ff6b6b' }}>Ainda faltam {formatarMoeda((totalPessoal + totalEsposa) - saldoPessoal)} para o mês pessoal fechar em verde.</span>
+              <span className="text-hawk-red">Ainda faltam <strong className="font-bold">{formatarMoeda((totalPessoal + totalEsposa) - saldoPessoal)}</strong> para o mês pessoal fechar em verde.</span>
             )}
           </div>
           
-          <div style={{ marginTop: '20px', padding: '12px', background: 'rgba(253, 121, 168, 0.1)', borderRadius: '12px', border: '1px solid rgba(253, 121, 168, 0.2)', display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>👩 Deste montante, o que é Gastos Esposa:</span>
-            <strong style={{ color: '#fd79a8' }}>{formatarMoeda(totalEsposa)}</strong>
+          <div className="mt-auto rounded-xl p-4 bg-pink-500/10 border border-pink-500/20 flex justify-between items-center gap-2">
+            <span className="text-sm text-hawk-text/90">
+              👩 Deste montante, Gastos Esposa:
+            </span>
+            <strong className="text-pink-400 text-base">{formatarMoeda(totalEsposa)}</strong>
           </div>
         </div>
 

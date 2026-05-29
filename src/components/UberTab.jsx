@@ -6,32 +6,25 @@ import {
   doc,
   setDoc,
   getDoc,
-  updateDoc,
-  deleteDoc,
   onSnapshot,
-  query,
-  orderBy,
-  limit,
   serverTimestamp,
   addDoc,
   increment
 } from 'firebase/firestore';
-import Calendar from 'react-calendar';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Legend
-} from 'recharts';
-import { formatarMoeda, formatarDataChave, formatarDataExibicao, parsarHoras, somarHoras, pad, nomeCaixinha } from '../utils/helpers';
+import { formatarDataChave, somarHoras, pad, nomeCaixinha } from '../utils/helpers';
 import ConsistenciaPanel from './ConsistenciaPanel';
+
+// ── Subcomponentes Tailwind ──
+import MotivationalBanner   from './uber/MotivationalBanner';
+import JornadaTimer         from './uber/JornadaTimer';
+import DailyForm            from './uber/DailyForm';
+import DailySummary         from './uber/DailySummary';
+import MonthlySummary       from './uber/MonthlySummary';
+import BancoCaixinhas       from './uber/BancoCaixinhas';
+import MonthlyChart         from './uber/MonthlyChart';
+import PieDistribution      from './uber/PieDistribution';
+import HistoricoRegistros   from './uber/HistoricoRegistros';
+import RepasseModal         from './uber/RepasseModal';
 
 const FRASES_MOTIVACIONAIS = [
   '🚗 Cada corrida é um passo mais perto dos seus sonhos!',
@@ -688,674 +681,97 @@ export default function UberTab() {
   }, [registrosMap]);
 
   return (
-    <div className="uber-tab">
+    <div className="max-w-4xl mx-auto px-3 md:px-6 py-4 space-y-4 animate-fade-in">
       {/* ═══════ 1. FRASE MOTIVACIONAL ═══════ */}
-      <div className="motivational-banner">
-        <p className={`motivational-text ${fraseVisivel ? 'fade-in' : 'fade-out'}`}>
-          {FRASES_MOTIVACIONAIS[fraseIndex]}
-        </p>
-      </div>
-
-      {/* ═══════ 2. CALENDÁRIO INTERATIVO ═══════ */}
-      <div className="section-card">
-        <h2 className="section-title">📅 Calendário</h2>
-        <div className="calendar-wrapper">
-          <Calendar
-            onChange={setDataSelecionada}
-            value={dataSelecionada}
-            locale="pt-BR"
-            tileClassName={tileClassName}
-            onActiveStartDateChange={({ activeStartDate }) => setMesAtivo(activeStartDate)}
-          />
-        </div>
-        <p className="calendar-selected-date">
-          Data selecionada: <strong>{dataSelecionada.toLocaleDateString('pt-BR')}</strong>
-        </p>
-      </div>
+      <MotivationalBanner frase={FRASES_MOTIVACIONAIS[fraseIndex]} visivel={fraseVisivel} />
 
       {/* ═══════ CRONÔMETRO DE JORNADA ═══════ */}
-      <div className="section-card" style={{ textAlign: 'center', padding: '32px 20px', position: 'relative', overflow: 'hidden' }}>
-        <h2 style={{ fontSize: '1rem', color: 'var(--text-secondary)', marginBottom: '16px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '2px' }}>
-          ⏳ Jornada de Trabalho
-        </h2>
-        
-        <div style={{
-          fontFamily: 'monospace',
-          fontSize: 'clamp(3rem, 10vw, 5rem)',
-          fontWeight: 800,
-          color: jornadaAtiva ? 'var(--green)' : (tempoDecorrido > 0 ? 'var(--yellow)' : 'var(--text-primary)'),
-          textShadow: jornadaAtiva ? '0 0 20px var(--green-glow)' : 'none',
-          marginBottom: '32px',
-          letterSpacing: '2px',
-          lineHeight: 1
-        }}>
-          {formatarTempoTimer(tempoDecorrido)}
-        </div>
+      <JornadaTimer
+        jornadaAtiva={jornadaAtiva}
+        tempoDecorrido={tempoDecorrido}
+        formatarTempoTimer={formatarTempoTimer}
+        onIniciar={iniciarJornada}
+        onPausar={pausarJornada}
+        onRetomar={retomarJornada}
+        onEncerrar={encerrarJornada}
+      />
 
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', flexWrap: 'wrap' }}>
-          {!jornadaAtiva && tempoDecorrido === 0 && (
-            <button className="btn-primary" onClick={iniciarJornada} style={{ padding: '16px 36px', fontSize: '1.1rem', borderRadius: '50px', width: '100%', maxWidth: '250px', justifyContent: 'center' }}>
-              ▶ Iniciar Jornada
-            </button>
-          )}
-
-          {jornadaAtiva && (
-            <button onClick={pausarJornada} style={{ padding: '16px 36px', fontSize: '1.1rem', borderRadius: '50px', background: 'var(--yellow-dim)', color: 'var(--yellow)', border: '1px solid rgba(255, 217, 61, 0.3)', cursor: 'pointer', fontWeight: 600, width: '100%', maxWidth: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'var(--transition)' }}>
-              ⏸ Pausar
-            </button>
-          )}
-
-          {!jornadaAtiva && tempoDecorrido > 0 && (
-            <button onClick={retomarJornada} style={{ padding: '16px 36px', fontSize: '1.1rem', borderRadius: '50px', background: 'var(--green-dim)', color: 'var(--green)', border: '1px solid rgba(0, 212, 170, 0.3)', cursor: 'pointer', fontWeight: 600, width: '100%', maxWidth: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'var(--transition)' }}>
-              ▶ Retomar
-            </button>
-          )}
-
-          {(jornadaAtiva || tempoDecorrido > 0) && (
-            <button onClick={encerrarJornada} style={{ padding: '16px 36px', fontSize: '1.1rem', borderRadius: '50px', background: 'var(--red-dim)', color: 'var(--red)', border: '1px solid rgba(255, 107, 107, 0.3)', cursor: 'pointer', fontWeight: 600, width: '100%', maxWidth: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'var(--transition)' }}>
-              ⏹ Encerrar
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* ═══════ 3. FORMULÁRIO DE REGISTRO DIÁRIO ═══════ */}
-      <div className="section-card">
-        <h2 className="section-title">📝 Registro do Dia — {dataSelecionada.toLocaleDateString('pt-BR')}</h2>
-        <div className="form-grid">
-          <div className="form-group">
-            <label className="form-label">Km Rodados</label>
-            <input
-              type="number"
-              className="form-input"
-              placeholder="Ex: 180"
-              value={km}
-              onChange={e => setKm(e.target.value)}
-            />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Total Bruto (R$)</label>
-            <input
-              type="number"
-              className="form-input"
-              placeholder="Ex: 350.00"
-              value={totalBruto}
-              onChange={e => setTotalBruto(e.target.value)}
-            />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Gastos Gerais (R$)</label>
-            <input
-              type="number"
-              className="form-input"
-              placeholder="Ex: 80.00"
-              value={gastosGerais}
-              onChange={e => setGastosGerais(e.target.value)}
-            />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Viagens</label>
-            <input
-              type="number"
-              className="form-input"
-              placeholder="Ex: 15"
-              value={viagens}
-              onChange={e => setViagens(e.target.value)}
-            />
-          </div>
-          <div className="form-group">
-            <label className="form-label">⏰ Início do Turno</label>
-            <input
-              type="time"
-              className="form-input"
-              value={horaInicio}
-              onChange={e => setHoraInicio(e.target.value)}
-            />
-          </div>
-          <div className="form-group">
-            <label className="form-label">🏁 Término do Turno</label>
-            <input
-              type="time"
-              className="form-input"
-              value={horaFim}
-              onChange={e => setHoraFim(e.target.value)}
-            />
-          </div>
-          <div className="form-group">
-            <label className="form-label">⏱️ Total de Horas Rodadas</label>
-            <input
-              type="text"
-              className="form-input"
-              placeholder="Ex: 8h30, 8 ou 5h45"
-              value={horarioRodado}
-              onChange={e => setHorarioRodado(e.target.value)}
-            />
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px', display: 'block' }}>
-              Calculado se preencher Início/Término, ou digite diretamente.
-            </span>
-          </div>
-        </div>
-
-        {/* Categorias & Apps Selecionáveis */}
-        <div style={{ marginTop: '20px', marginBottom: '24px', textAlign: 'left' }}>
-          <label className="form-label" style={{ display: 'block', marginBottom: '8px', fontWeight: 600 }}>
-            🚗 Categorias & Apps Ativos no Dia
-          </label>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            {CATEGORIAS_DISPONIVEIS.map(cat => {
-              const ativo = categoriasSelecionadas.includes(cat);
-              return (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => toggleCategoria(cat)}
-                  style={{
-                    padding: '10px 18px',
-                    borderRadius: '50px',
-                    border: '1px solid',
-                    borderColor: ativo ? 'var(--green)' : 'var(--glass-border)',
-                    background: ativo ? 'var(--green-dim)' : 'var(--glass-bg)',
-                    color: ativo ? 'var(--green)' : 'var(--text-secondary)',
-                    cursor: 'pointer',
-                    fontSize: '0.85rem',
-                    fontWeight: 600,
-                    transition: 'var(--transition-fast)',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px'
-                  }}
-                  className="tag-btn-selecionar"
-                >
-                  {ativo ? '✓' : '+'} {cat}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        {erro && (
-          <div style={{
-            background: 'rgba(255, 107, 107, 0.15)',
-            border: '1px solid rgba(255, 107, 107, 0.25)',
-            color: '#ff6b6b',
-            padding: '14px',
-            borderRadius: '12px',
-            fontSize: '0.85rem',
-            marginBottom: '16px',
-            lineHeight: '1.5',
-            textAlign: 'left'
-          }}>
-            <strong>⚠️ Falha ao Salvar no Firebase:</strong><br />
-            {erro.includes('permission') || erro.includes('Permission') || erro.includes('permission-denied')
-              ? 'Permissão negada! Suas regras do Firestore estão bloqueando gravações na nuvem. Acesse o seu Firebase Console > Firestore Database > Rules e altere para permitir leituras e gravações para usuários autenticados.'
-              : `Erro: ${erro}. Verifique se o seu banco Firestore foi ativado ou confira a conexão de rede.`}
-          </div>
-        )}
-
-        <button
-          className="btn-primary btn-salvar"
-          onClick={salvarDia}
-          disabled={salvando}
-        >
-          {salvando ? 'Salvando...' : '💾 Salvar Dia'}
-        </button>
-      </div>
-
+      {/* ═══════ 2+3. CALENDÁRIO + FORMULÁRIO DE REGISTRO DIÁRIO ═══════ */}
+      <DailyForm
+        dataSelecionada={dataSelecionada}
+        setDataSelecionada={setDataSelecionada}
+        mesAtivo={mesAtivo}
+        setMesAtivo={setMesAtivo}
+        tileClassName={tileClassName}
+        km={km} setKm={setKm}
+        totalBruto={totalBruto} setTotalBruto={setTotalBruto}
+        gastosGerais={gastosGerais} setGastosGerais={setGastosGerais}
+        viagens={viagens} setViagens={setViagens}
+        horaInicio={horaInicio} setHoraInicio={setHoraInicio}
+        horaFim={horaFim} setHoraFim={setHoraFim}
+        horarioRodado={horarioRodado} setHorarioRodado={setHorarioRodado}
+        categoriasSelecionadas={categoriasSelecionadas}
+        toggleCategoria={toggleCategoria}
+        erro={erro}
+        salvando={salvando}
+        onSalvar={salvarDia}
+      />
       {/* ═══════ 4. RESUMO DO DIA ═══════ */}
-      <div className="section-card">
-        <h2 className="section-title">📊 Resumo do Dia — {dataSelecionada.toLocaleDateString('pt-BR')}</h2>
-        <div className="summary-grid">
-          <div className="summary-card summary-green">
-            <span className="summary-label">Líquido</span>
-            <span className="summary-value">{formatarMoeda(liquidoNum)}</span>
-          </div>
-          <div className="summary-card summary-blue">
-            <span className="summary-label">Valor Pessoal / Salário</span>
-            <span className="summary-value">{formatarMoeda(motoristaNum)}</span>
-          </div>
-          <div className="summary-card summary-purple">
-            <span className="summary-label">Valor Empresa / Custo</span>
-            <span className="summary-value">{formatarMoeda(empresaNum)}</span>
-          </div>
-          <div className="summary-card summary-default">
-            <span className="summary-label">Km Rodados</span>
-            <span className="summary-value">{kmNum} km</span>
-          </div>
-          <div className="summary-card summary-default">
-            <span className="summary-label">Viagens</span>
-            <span className="summary-value">{viagensNum}</span>
-          </div>
-          <div className="summary-card summary-default">
-            <span className="summary-label">Horas Rodadas</span>
-            <span className="summary-value">{horarioRodado || '0h00'}</span>
-          </div>
-        </div>
-      </div>
+      <DailySummary
+        dataSelecionada={dataSelecionada}
+        liquidoNum={liquidoNum}
+        motoristaNum={motoristaNum}
+        empresaNum={empresaNum}
+        kmNum={kmNum}
+        viagensNum={viagensNum}
+        horarioRodado={horarioRodado}
+      />
 
       {/* ═══════ 5. RESUMO DO MÊS ═══════ */}
-      <div className="section-card">
-        <h2 className="section-title">
-          📈 Resumo do Mês — {mesAtivo.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
-        </h2>
-        <div className="summary-grid">
-          <div className="summary-card summary-green">
-            <span className="summary-label">Líquido Total</span>
-            <span className="summary-value">{formatarMoeda(resumoMes.liquido)}</span>
-          </div>
-          <div className="summary-card summary-blue">
-            <span className="summary-label">Pessoal / Salário</span>
-            <span className="summary-value">{formatarMoeda(resumoMes.motorista)}</span>
-          </div>
-          <div className="summary-card summary-purple">
-            <span className="summary-label">Empresa / Custo</span>
-            <span className="summary-value">{formatarMoeda(resumoMes.empresa)}</span>
-          </div>
-          <div className="summary-card summary-default">
-            <span className="summary-label">Km Total</span>
-            <span className="summary-value">{resumoMes.km} km</span>
-          </div>
-          <div className="summary-card summary-default">
-            <span className="summary-label">Viagens Total</span>
-            <span className="summary-value">{resumoMes.viagens}</span>
-          </div>
-          <div className="summary-card summary-default">
-            <span className="summary-label">Horas Total</span>
-            <span className="summary-value">{resumoMes.horas}</span>
-          </div>
-        </div>
-      </div>
+      <MonthlySummary mesAtivo={mesAtivo} resumoMes={resumoMes} />
 
       {/* ═══════ 6. BANCO CAIXINHAS ═══════ */}
-      <div className="section-card">
-        <div className="flex-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
-          <h2 className="section-title" style={{ margin: 0 }}>🏦 Banco Caixinhas — {dataSelecionada.toLocaleDateString('pt-BR')}</h2>
-          <button
-            className="caixinhas-config-toggle"
-            onClick={() => setMostrarConfig(!mostrarConfig)}
-          >
-            {mostrarConfig ? '✕ Fechar Configurações' : '⚙️ Configurar Caixinhas'}
-          </button>
-        </div>
-
-        {mostrarConfig && (
-          <form className="caixinhas-config-panel" onSubmit={salvarConfiguracao}>
-            <h3 className="config-title">⚙️ Ajustar Porcentagens do Banco Caixinhas</h3>
-            
-            <div style={{ marginBottom: '20px', background: 'rgba(0,0,0,0.2)', padding: '16px', borderRadius: '12px' }}>
-              <div style={{ marginBottom: '12px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '6px' }}>
-                  <span>Alocação do <strong>Bruto</strong> (Emergência + Manutenção)</span>
-                  <span style={{ color: (parseFloat(pctEmergencia||0) + parseFloat(pctManutencao||0)) > 100 ? '#ff6b6b' : '#00d4aa', fontWeight: 'bold' }}>
-                    {parseFloat(pctEmergencia||0) + parseFloat(pctManutencao||0)}%
-                  </span>
-                </div>
-                <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden', display: 'flex' }}>
-                  <div style={{ width: `${Math.min(100, parseFloat(pctEmergencia||0))}%`, background: '#ffd93d' }} title="Emergência" />
-                  <div style={{ width: `${Math.min(100, parseFloat(pctManutencao||0))}%`, background: '#ff6b6b' }} title="Manutenção" />
-                </div>
-              </div>
-              
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '6px' }}>
-                  <span>Alocação do <strong>Líquido</strong> (Empresa + Livre + Contas)</span>
-                  <span style={{ color: (parseFloat(pctEmpresa||0) + parseFloat(pctLivre||0) + parseFloat(pctContas||0)) > 100 ? '#ff6b6b' : '#00d4aa', fontWeight: 'bold' }}>
-                    {parseFloat(pctEmpresa||0) + parseFloat(pctLivre||0) + parseFloat(pctContas||0)}%
-                  </span>
-                </div>
-                <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden', display: 'flex' }}>
-                  <div style={{ width: `${Math.min(100, parseFloat(pctEmpresa||0))}%`, background: '#6c5ce7' }} title="Empresa" />
-                  <div style={{ width: `${Math.min(100, parseFloat(pctLivre||0))}%`, background: '#00b894' }} title="Livre" />
-                  <div style={{ width: `${Math.min(100, parseFloat(pctContas||0))}%`, background: '#0984e3' }} title="Contas" />
-                </div>
-              </div>
-            </div>
-
-            <div className="config-grid">
-              <div className="config-group">
-                <label className="config-label">🚨 Reserva de Emergência (% Bruto)</label>
-                <div className="config-input-wrapper">
-                  <input
-                    type="number"
-                    className="config-input"
-                    value={pctEmergencia}
-                    onChange={e => setPctEmergencia(e.target.value)}
-                    min="0" max="100" required
-                  />
-                  <span className="config-symbol">%</span>
-                </div>
-              </div>
-              <div className="config-group">
-                <label className="config-label">🔧 Manutenção (% Bruto)</label>
-                <div className="config-input-wrapper">
-                  <input
-                    type="number"
-                    className="config-input"
-                    value={pctManutencao}
-                    onChange={e => setPctManutencao(e.target.value)}
-                    min="0" max="100" required
-                  />
-                  <span className="config-symbol">%</span>
-                </div>
-              </div>
-              <div className="config-group">
-                <label className="config-label">🏢 Empresa (% Líquido)</label>
-                <div className="config-input-wrapper">
-                  <input
-                    type="number"
-                    className="config-input"
-                    value={pctEmpresa}
-                    onChange={e => setPctEmpresa(e.target.value)}
-                    min="0" max="100" required
-                  />
-                  <span className="config-symbol">%</span>
-                </div>
-              </div>
-              <div className="config-group">
-                <label className="config-label">💸 Livre - Lazer (% Líquido)</label>
-                <div className="config-input-wrapper">
-                  <input
-                    type="number"
-                    className="config-input"
-                    value={pctLivre}
-                    onChange={e => setPctLivre(e.target.value)}
-                    min="0" max="100" required
-                  />
-                  <span className="config-symbol">%</span>
-                </div>
-              </div>
-              <div className="config-group">
-                <label className="config-label">💳 Contas (% Líquido)</label>
-                <div className="config-input-wrapper">
-                  <input
-                    type="number"
-                    className="config-input"
-                    value={pctContas}
-                    onChange={e => setPctContas(e.target.value)}
-                    min="0" max="100" required
-                  />
-                  <span className="config-symbol">%</span>
-                </div>
-              </div>
-            </div>
-            <button type="submit" className="btn-primary" disabled={salvandoConfig}>
-              {salvandoConfig ? 'Salvando...' : '💾 Salvar Porcentagens'}
-            </button>
-          </form>
-        )}
-
-        {/* Blocos de Separação de Negócio e Salário */}
-        <div style={{ marginTop: '24px', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)' }}>
-          <h3 style={{ fontSize: '1.05rem', margin: '0 0 16px 0', color: 'var(--text-primary)' }}>🏢 Para a Empresa (Custos Fixos e Variáveis)</h3>
-          <div className="caixinhas-grid">
-            {/* Manutenção */}
-            <div className={`caixinha-card ${registroDoDia?.caixinhasEnviadas ? 'caixinha-enviada' : ''}`}>
-              <span className="caixinha-label">🔧 Manutenção ({pctManutencao}% Bruto)</span>
-              <span className="caixinha-valor">{formatarMoeda(brutoNum * (pctManutencao / 100))}</span>
-            </div>
-
-            {/* Empresa */}
-            <div className={`caixinha-card ${registroDoDia?.caixinhasEnviadas ? 'caixinha-enviada' : ''}`}>
-              <span className="caixinha-label">🏢 Empresa ({pctEmpresa}% Líquido)</span>
-              <span className="caixinha-valor">{formatarMoeda(liquidoNum * (pctEmpresa / 100))}</span>
-            </div>
-          </div>
-        </div>
-
-        <div style={{ marginTop: '24px', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)' }}>
-          <h3 style={{ fontSize: '1.05rem', margin: '0 0 16px 0', color: 'var(--text-primary)' }}>👤 Para o seu Salário (Pessoa Física)</h3>
-          <div className="caixinhas-grid">
-            {/* Emergência */}
-            <div className={`caixinha-card ${registroDoDia?.caixinhasEnviadas ? 'caixinha-enviada' : ''}`}>
-              <span className="caixinha-label">🚨 Reserva de Emergência ({pctEmergencia}% Bruto)</span>
-              <span className="caixinha-valor">{formatarMoeda(brutoNum * (pctEmergencia / 100))}</span>
-            </div>
-
-            {/* Livre - Lazer */}
-            <div className={`caixinha-card ${registroDoDia?.caixinhasEnviadas ? 'caixinha-enviada' : ''}`}>
-              <span className="caixinha-label">💸 Livre - Lazer ({pctLivre}% Líquido)</span>
-              <span className="caixinha-valor">{formatarMoeda(liquidoNum * (pctLivre / 100))}</span>
-            </div>
-
-            {/* Contas */}
-            <div className={`caixinha-card ${registroDoDia?.caixinhasEnviadas ? 'caixinha-enviada' : ''}`}>
-              <span className="caixinha-label">💳 Contas ({pctContas}% Líquido)</span>
-              <span className="caixinha-valor">{formatarMoeda(liquidoNum * (pctContas / 100))}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Novo Painel de Repasse Semanal */}
-        <div style={{ marginTop: '32px', textAlign: 'center', background: 'var(--bg-card)', padding: '24px', borderRadius: '16px', border: '1px solid var(--glass-border)' }}>
-          <h3 style={{ fontSize: '1.2rem', color: 'var(--text-primary)', marginBottom: '8px' }}>💰 A Receber dos Apps</h3>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '16px' }}>
-            Valor acumulado dos seus dias trabalhados que ainda não foi para as Caixinhas.
-          </p>
-          <div style={{ fontSize: '2.5rem', fontWeight: 800, color: '#00cec9', marginBottom: '24px' }}>
-            {formatarMoeda(saldoRetido)}
-          </div>
-          <button
-            className="btn-primary"
-            onClick={() => setMostrarRepasseModal(true)}
-            disabled={saldoRetido <= 0}
-            style={{ fontSize: '1.1rem', padding: '16px 32px', borderRadius: '50px', background: 'linear-gradient(135deg, #00cec9, #0984e3)' }}
-          >
-            🤑 Receber Repasse Semanal
-          </button>
-        </div>
-      </div>
+      <BancoCaixinhas
+        dataSelecionada={dataSelecionada}
+        registroDoDia={registroDoDia}
+        brutoNum={brutoNum}
+        liquidoNum={liquidoNum}
+        pctEmergencia={pctEmergencia} setPctEmergencia={setPctEmergencia}
+        pctManutencao={pctManutencao} setPctManutencao={setPctManutencao}
+        pctEmpresa={pctEmpresa}       setPctEmpresa={setPctEmpresa}
+        pctLivre={pctLivre}           setPctLivre={setPctLivre}
+        pctContas={pctContas}         setPctContas={setPctContas}
+        saldoRetido={saldoRetido}
+        salvandoConfig={salvandoConfig}
+        onSalvarConfig={salvarConfiguracao}
+        onAbrirRepasse={() => setMostrarRepasseModal(true)}
+      />
 
       {/* ═══════ 7. GRÁFICO DE LINHA ═══════ */}
-      <div className="section-card">
-        <h2 className="section-title">
-          📉 Evolução Mensal — {mesAtivo.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
-        </h2>
-        {dadosGraficoLinha.length > 0 ? (
-          <div className="chart-container">
-            <ResponsiveContainer width="100%" height={320}>
-              <LineChart data={dadosGraficoLinha}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                <XAxis dataKey="data" stroke="#888" fontSize={12} />
-                <YAxis stroke="#888" fontSize={12} />
-                <Tooltip content={<CustomTooltip />} />
-                <Line
-                  type="monotone"
-                  dataKey="bruto"
-                  name="Bruto"
-                  stroke={CORES_GRAFICO.bruto}
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  activeDot={{ r: 5 }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="liquido"
-                  name="Líquido"
-                  stroke={CORES_GRAFICO.liquido}
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  activeDot={{ r: 5 }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="gastos"
-                  name="Gastos"
-                  stroke={CORES_GRAFICO.gastos}
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  activeDot={{ r: 5 }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="viagens"
-                  name="Viagens"
-                  stroke={CORES_GRAFICO.viagens}
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  activeDot={{ r: 5 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        ) : (
-          <p className="empty-state">Nenhum registro encontrado neste mês.</p>
-        )}
-      </div>
+      <MonthlyChart mesAtivo={mesAtivo} dados={dadosGraficoLinha} />
 
       {/* ═══════ 8. GRÁFICO PIZZA ═══════ */}
-      <div className="section-card">
-        <h2 className="section-title">🥧 Distribuição das Caixinhas — {dataSelecionada.toLocaleDateString('pt-BR')}</h2>
-        {dadosGraficoPizza.length > 0 ? (
-          <div className="chart-container">
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={dadosGraficoPizza}
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={100}
-                  dataKey="value"
-                  label={renderPieLabel}
-                  labelLine={true}
-                >
-                  {dadosGraficoPizza.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={CORES_PIZZA[entry.name] || '#ccc'} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value) => formatarMoeda(value)} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        ) : (
-          <p className="empty-state">Preencha os valores do dia para ver a distribuição.</p>
-        )}
-      </div>
+      <PieDistribution dataSelecionada={dataSelecionada} dados={dadosGraficoPizza} />
 
       {/* ═══════ 9. HISTÓRICO DE REGISTROS ═══════ */}
-      <div className="section-card">
-        <div className="historico-header-row">
-          <h2 className="section-title" style={{ margin: 0 }}>📜 Histórico de Registros</h2>
-          {historicoRegistros.length > 0 && (
-            <button
-              className="btn-maximize"
-              onClick={() => setHistoricoExpandido(!historicoExpandido)}
-            >
-              {historicoExpandido ? '↕️ Minimizar Histórico' : '↕️ Maximizar Histórico'}
-            </button>
-          )}
-        </div>
-
-        {historicoRegistros.length > 0 ? (
-          !historicoExpandido ? (
-            <div
-              className="month-group-card"
-              style={{ cursor: 'pointer', padding: '20px', textAlign: 'center', background: 'rgba(255, 255, 255, 0.02)' }}
-              onClick={() => setHistoricoExpandido(true)}
-            >
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', margin: 0 }}>
-                📂 O histórico de registros está minimizado.
-                <strong style={{ color: 'var(--purple)', marginLeft: '6px' }}>Clique para Maximizar / Visualizar</strong>.
-              </p>
-            </div>
-          ) : (
-            <div className="historico-expandido-container">
-              {registrosAgrupadosPorMes.map((grupo, idx) => {
-                const isExpanded = mesesExpandidos[grupo.chave] !== undefined
-                  ? mesesExpandidos[grupo.chave]
-                  : idx === 0; // Most recent month expanded by default
-
-                return (
-                  <div key={grupo.chave} className="month-group-card">
-                    <div
-                      className="month-group-header"
-                      onClick={() => toggleMesExpandido(grupo.chave)}
-                    >
-                      <div className="month-group-title">
-                        <span>📅</span>
-                        {grupo.nomeMes}
-                      </div>
-                      <div className="month-group-summary">
-                        <span>Bruto: <strong>{formatarMoeda(grupo.totalBruto)}</strong></span>
-                        <span className={grupo.totalLiquido < 0 ? 'negative' : ''}>
-                          Líquido: <strong>{formatarMoeda(grupo.totalLiquido)}</strong>
-                        </span>
-                        <span>Km: <strong>{grupo.totalKm} km</strong></span>
-                      </div>
-                      <span className={`month-group-arrow ${isExpanded ? 'rotated' : ''}`}>▼</span>
-                    </div>
-
-                    {isExpanded && (
-                      <div className="historico-table-wrapper" style={{ border: 'none', borderRadius: 0 }}>
-                        <table className="historico-table">
-                          <thead>
-                            <tr>
-                              <th>Data</th>
-                              <th>Km</th>
-                              <th>Bruto</th>
-                              <th>Gastos</th>
-                              <th>Líquido</th>
-                              <th>Viagens</th>
-                              <th>Horas</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {grupo.registros.map(r => {
-                              const rBruto = r.totalBruto || 0;
-                              const rGastos = r.gastosGerais || 0;
-                              const rLiquido = r.totalLiquido != null ? r.totalLiquido : rBruto - rGastos;
-                              return (
-                                <tr key={r.id} onClick={() => setDataSelecionada(new Date(r.id + 'T12:00:00'))}>
-                                  <td>{formatarDataExibicao(r.id)}</td>
-                                  <td>{r.km != null ? r.km : 0}</td>
-                                  <td>{formatarMoeda(rBruto)}</td>
-                                  <td>{formatarMoeda(rGastos)}</td>
-                                  <td className={`td-liquido ${rLiquido < 0 ? 'negative' : ''}`}>
-                                    {formatarMoeda(rLiquido)}
-                                  </td>
-                                  <td>{r.viagens != null ? r.viagens : 0}</td>
-                                  <td>{r.horarioRodado || '—'}</td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )
-        ) : (
-          <p className="empty-state">Nenhum registro encontrado. Comece salvando seu primeiro dia!</p>
-        )}
-      </div>
+      <HistoricoRegistros
+        registrosAgrupadosPorMes={registrosAgrupadosPorMes}
+        onSelectData={setDataSelecionada}
+      />
 
       {/* ═══════ 10. PAINEL DE CONSISTÊNCIA ═══════ */}
       <ConsistenciaPanel registrosMap={registrosMap} mesAtivo={mesAtivo} />
-      {/* MODAL REPASSE SEMANAL */}
+
+      {/* ═══════ MODAL REPASSE SEMANAL ═══════ */}
       {mostrarRepasseModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
-          <div className="section-card" style={{ width: '90%', maxWidth: '450px', background: '#16162a', padding: '32px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.1)' }}>
-            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.3rem', color: '#fff', textAlign: 'center' }}>🤑 Distribuir Repasse</h3>
-            
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', textAlign: 'center', marginBottom: '24px' }}>
-              O app vai pegar o saldo acumulado de <strong>{formatarMoeda(saldoRetido)}</strong> e dividir automaticamente nas suas Caixinhas de Patrimônio (Empresa, Lazer, etc).
-            </p>
-
-            <div style={{ background: 'rgba(0, 206, 201, 0.1)', padding: '16px', borderRadius: '12px', marginBottom: '24px', textAlign: 'center', border: '1px solid rgba(0, 206, 201, 0.3)' }}>
-              <div style={{ fontSize: '0.9rem', color: '#00cec9' }}>Valor que será distribuído:</div>
-              <div style={{ fontSize: '1.8rem', color: '#00cec9', fontWeight: 'bold', marginTop: '4px' }}>{formatarMoeda(saldoRetido)}</div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-              <button onClick={processarRepasse} className="btn-primary" style={{ flex: 1, padding: '14px', fontSize: '1.05rem', background: '#00cec9', color: '#000' }} disabled={processandoRepasse}>
-                {processandoRepasse ? 'Processando...' : 'Confirmar Repasse'}
-              </button>
-              <button type="button" className="btn-secondary" onClick={() => setMostrarRepasseModal(false)} style={{ padding: '14px 24px' }}>Cancelar</button>
-            </div>
-          </div>
-        </div>
+        <RepasseModal
+          saldoRetido={saldoRetido}
+          processando={processandoRepasse}
+          onConfirmar={processarRepasse}
+          onCancelar={() => setMostrarRepasseModal(false)}
+        />
       )}
     </div>
   );
 }
+
