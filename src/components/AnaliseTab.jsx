@@ -7,6 +7,15 @@ import ReactMarkdown from 'react-markdown';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { formatarMoeda, parsarHoras } from '../utils/helpers';
 
+// Perguntas rápidas que o motorista pode tocar dentro do chat
+const PERGUNTAS_SUGERIDAS = [
+  { emoji: '📅', texto: 'Quais são meus melhores dias para rodar?' },
+  { emoji: '⏰', texto: 'Qual o melhor horário pra eu trabalhar?' },
+  { emoji: '💰', texto: 'Como está meu lucro este mês?' },
+  { emoji: '📉', texto: 'Onde estou gastando demais?' },
+  { emoji: '🎯', texto: 'Me dê uma dica pra ganhar mais hoje.' },
+];
+
 function getDiaSemanaNome(diaIdx) {
   const nomes = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
   return nomes[diaIdx];
@@ -287,11 +296,12 @@ export default function AnaliseTab() {
   };
 
   // Função para lidar com o envio de mensagem ao Chatbot
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!inputMessage.trim() || !apiKey) return;
+  const handleSendMessage = async (e, presetText) => {
+    if (e) e.preventDefault();
 
-    const userMsg = inputMessage;
+    const userMsg = (presetText ?? inputMessage).trim();
+    if (!userMsg || !apiKey || isChatLoading) return;
+
     setInputMessage('');
     setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
     setIsChatLoading(true);
@@ -319,6 +329,13 @@ O usuário deseja dicas, análises, e estratégias sobre sua rotina, ganhos e ga
 Abaixo estão os dados financeiros registrados pelo usuário no sistema (filtrados de ${anoMinimo} em diante). Analise-os para responder às perguntas de forma precisa e personalizada.
 Responda sempre em português, com tom amigável, motivacional e direto. Use formatação Markdown (negrito, listas).
 Seja inteligente: correlacione os dias mais rentáveis, gastos que estão altos, etc.
+
+REGRAS DE RESPOSTA (MUITO IMPORTANTE — o público são motoristas na correria, com pouco tempo):
+- Seja CURTO e objetivo. No máximo 4 a 6 linhas por resposta.
+- Vá direto ao ponto. Nada de introduções longas nem explicações genéricas.
+- Use bullets curtos (•) com os números/dados mais importantes em **negrito**.
+- Destaque sempre 1 ação prática que o motorista pode fazer hoje.
+- Use no máximo 1 ou 2 emojis. Evite parágrafos longos.
 
 TIPO DE VEÍCULO DO USUÁRIO: ${tipoVeiculo}
 ${tipoVeiculo === 'eletrico' ? '(Lembre-se que veículos elétricos têm gastos com "combustível" quase nulos. Não alerte sobre gastos baixos com isso).' : ''}
@@ -550,10 +567,24 @@ ${JSON.stringify(despesasVariaveisAtuais)}
           {/* Chat Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {messages.length === 0 ? (
-              <div className="text-center h-full flex flex-col items-center justify-center text-hawk-muted opacity-50">
-                <span className="text-4xl mb-2">🤖</span>
-                <p className="text-sm">Olá! Eu sou sua IA Financeira.</p>
-                <p className="text-xs max-w-[250px] mt-1">Eu conheço 100% dos seus dados de ganhos, gastos fixos e variáveis. O que deseja analisar hoje?</p>
+              <div className="h-full flex flex-col items-center justify-center text-hawk-muted">
+                <span className="text-4xl mb-2 opacity-50">🤖</span>
+                <p className="text-sm opacity-50">Olá! Eu sou sua IA Financeira.</p>
+                <p className="text-xs max-w-[250px] mt-1 text-center opacity-50">Eu conheço 100% dos seus dados de ganhos, gastos fixos e variáveis. Toque numa pergunta abaixo:</p>
+                {apiKey && (
+                  <div className="flex flex-col gap-2 w-full max-w-[320px] mt-5">
+                    {PERGUNTAS_SUGERIDAS.map((p, i) => (
+                      <button
+                        key={i}
+                        onClick={() => handleSendMessage(null, p.texto)}
+                        className="flex items-center gap-2 text-left text-xs text-hawk-text bg-hawk-input border border-glass-border hover:border-hawk-purple hover:bg-hawk-purple/10 rounded-xl px-3 py-2.5 transition-all active:scale-[0.98]"
+                      >
+                        <span className="text-base">{p.emoji}</span>
+                        <span>{p.texto}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             ) : (
               messages.map((msg, i) => (
@@ -585,7 +616,22 @@ ${JSON.stringify(despesasVariaveisAtuais)}
                 Configure sua API Key para começar a usar a IA
               </button>
             ) : (
-              <form onSubmit={handleSendMessage} className="flex gap-2">
+              <>
+                {!isChatLoading && (
+                  <div className="flex gap-2 overflow-x-auto pb-3 -mx-1 px-1 scrollbar-thin">
+                    {PERGUNTAS_SUGERIDAS.map((p, i) => (
+                      <button
+                        key={i}
+                        onClick={() => handleSendMessage(null, p.texto)}
+                        className="flex items-center gap-1.5 whitespace-nowrap text-xs text-hawk-text bg-hawk-input border border-glass-border hover:border-hawk-purple hover:bg-hawk-purple/10 rounded-full px-3 py-1.5 transition-all active:scale-95"
+                      >
+                        <span>{p.emoji}</span>
+                        <span>{p.texto}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <form onSubmit={handleSendMessage} className="flex gap-2">
                 <input
                   type="text"
                   value={inputMessage}
@@ -603,7 +649,8 @@ ${JSON.stringify(despesasVariaveisAtuais)}
                     <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
                   </svg>
                 </button>
-              </form>
+                </form>
+              </>
             )}
           </div>
         </div>

@@ -206,16 +206,24 @@ export default function UberTab() {
       tempoTotalMs += (agora - jornadaInicioTimer);
     }
 
+    // Recupera o horário de início a partir do timestamp original (persistido no
+    // localStorage), garantindo que o campo apareça preenchido mesmo que o app
+    // tenha recarregado durante a jornada e o estado do formulário tenha sido zerado.
+    if (jornadaInicioOriginal) {
+      const inicioObj = new Date(jornadaInicioOriginal);
+      setHoraInicio(`${pad(inicioObj.getHours())}:${pad(inicioObj.getMinutes())}`);
+    }
+
     setJornadaAtiva(false);
     setJornadaInicioOriginal(null);
     setJornadaInicioTimer(null);
     setJornadaAcumulada(0);
     setTempoDecorrido(0);
-    
+
     const totalSegundos = Math.floor(tempoTotalMs / 1000);
     const horas = Math.floor(totalSegundos / 3600);
     const minutos = Math.floor((totalSegundos % 3600) / 60);
-    
+
     setHoraFim(`${pad(dataObj.getHours())}:${pad(dataObj.getMinutes())}`);
     setHorarioRodado(`${horas}h${minutos > 0 ? pad(minutos) : '00'}`);
   };
