@@ -16,11 +16,13 @@ import {
 } from 'firebase/firestore';
 import { formatarMoeda, formatarData, MESES, nomeCaixinha } from '../utils/helpers';
 import NavegacaoMes from './NavegacaoMes';
+import { usePreferencias } from '../contexts/PreferenciasContext';
 
 const BANDEIRAS = ['Mastercard', 'Visa', 'Elo', 'Amex', 'Hipercard', 'Outra'];
 
 export default function CartoesTab() {
   const { usuario } = useAuth();
+  const { rotuloEsposa, emojiEsposa } = usePreferencias();
   const agora = new Date();
 
   // Navegação de Fatura
@@ -337,12 +339,12 @@ export default function CartoesTab() {
       </div>
 
       {/* Cartões Horizontais */}
-      <div className="flex gap-4 overflow-x-auto pb-4 mb-2 scrollbar-none snap-x snap-mandatory">
+      <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-4 mb-2 -mx-3 px-3 md:mx-0 md:px-0 scrollbar-none snap-x snap-mandatory">
         {cartoes.map(cartao => (
-          <div 
+          <div
             key={cartao.id}
             onClick={() => setCartaoSelecionadoId(cartao.id)}
-            className={`min-w-[240px] snap-center p-5 rounded-2xl cursor-pointer transition-all duration-300 flex flex-col gap-4 border shadow-card ${cartaoSelecionadoId === cartao.id ? 'scale-100 opacity-100' : 'scale-95 opacity-70 hover:opacity-100'}`}
+            className={`min-w-[200px] sm:min-w-[240px] snap-center p-4 sm:p-5 rounded-2xl cursor-pointer transition-all duration-300 flex flex-col gap-4 border shadow-card ${cartaoSelecionadoId === cartao.id ? 'scale-100 opacity-100' : 'scale-95 opacity-70 hover:opacity-100'}`}
             style={{
               background: cartaoSelecionadoId === cartao.id ? `linear-gradient(135deg, ${cartao.cor}, #111)` : 'rgba(255,255,255,0.03)',
               border: `1px solid ${cartaoSelecionadoId === cartao.id ? cartao.cor : 'rgba(255,255,255,0.1)'}`,
@@ -361,7 +363,7 @@ export default function CartoesTab() {
         
         <div 
           onClick={() => { limparFormulario(); setModalCartao(true); }}
-          className="min-w-[240px] snap-center p-5 rounded-2xl bg-white/5 border border-dashed border-white/20 cursor-pointer flex flex-col justify-center items-center gap-2 text-hawk-muted hover:text-white hover:bg-white/10 hover:border-white/40 transition-all shadow-card"
+          className="min-w-[160px] sm:min-w-[200px] snap-center p-4 sm:p-5 rounded-2xl bg-white/5 border border-dashed border-white/20 cursor-pointer flex flex-col justify-center items-center gap-2 text-hawk-muted hover:text-white hover:bg-white/10 hover:border-white/40 transition-all shadow-card"
         >
           <span className="text-3xl font-light mb-1">+</span>
           <span className="font-bold text-sm">Adicionar Cartão</span>
@@ -370,38 +372,38 @@ export default function CartoesTab() {
 
       {cartaoSelecionado && (
         <div className="space-y-6 animate-fade-in">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3 md:gap-4">
             <NavegacaoMes
               mesAtual={mesAtual}
               anoAtual={anoAtual}
               setMesAtual={setMesAtual}
               setAnoAtual={setAnoAtual}
             />
-            <div className="flex flex-wrap justify-center gap-2">
+            <div className="w-full md:w-auto flex flex-wrap gap-2">
               {pendenciasFatura.total > 0 && (
-                <button className="px-4 py-2 font-bold text-sm text-hawk-bg bg-hawk-purple rounded-xl hover:bg-hawk-purple/90 transition-colors shadow-lg shadow-hawk-purple/20" onClick={() => setPagamentoFaturaModal(true)}>
+                <button className="w-full md:w-auto px-4 py-3 md:py-2 font-bold text-sm text-hawk-bg bg-hawk-purple rounded-xl hover:bg-hawk-purple/90 transition-colors shadow-lg shadow-hawk-purple/20 active:scale-[0.98]" onClick={() => setPagamentoFaturaModal(true)}>
                   💳 Pagar Fatura
                 </button>
               )}
-              <button className="px-4 py-2 font-bold text-sm text-hawk-text bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors" onClick={() => iniciarEdicao(cartaoSelecionado)}>
+              <button className="flex-1 md:flex-none px-4 py-3 md:py-2 font-bold text-sm text-hawk-text bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors active:scale-[0.98]" onClick={() => iniciarEdicao(cartaoSelecionado)}>
                 ✎ Editar
               </button>
-              <button className="px-4 py-2 font-bold text-sm text-hawk-red bg-hawk-red/10 border border-hawk-red/20 rounded-xl hover:bg-hawk-red/20 transition-colors" onClick={() => excluirCartao(cartaoSelecionado.id)}>
+              <button className="flex-1 md:flex-none px-4 py-3 md:py-2 font-bold text-sm text-hawk-red bg-hawk-red/10 border border-hawk-red/20 rounded-xl hover:bg-hawk-red/20 transition-colors active:scale-[0.98]" onClick={() => excluirCartao(cartaoSelecionado.id)}>
                 ✕ Excluir
               </button>
             </div>
           </div>
 
           {/* Resumo da Fatura */}
-          <div className="rounded-3xl border border-glass-border bg-hawk-card p-6 md:p-8 shadow-card-hover relative overflow-hidden" style={{ borderTop: `4px solid ${cartaoSelecionado.cor}` }}>
-            <div className="absolute top-0 right-0 p-8 opacity-5">
-              <span className="text-9xl">💳</span>
+          <div className="rounded-3xl border border-glass-border bg-hawk-card p-5 sm:p-6 md:p-8 shadow-card-hover relative overflow-hidden" style={{ borderTop: `4px solid ${cartaoSelecionado.cor}` }}>
+            <div className="absolute top-0 right-0 p-5 sm:p-8 opacity-5 pointer-events-none">
+              <span className="text-7xl sm:text-9xl">💳</span>
             </div>
-            
-            <div className="relative z-10 flex flex-col md:flex-row justify-between gap-6 mb-8">
+
+            <div className="relative z-10 flex flex-col md:flex-row justify-between gap-5 md:gap-6 mb-6 md:mb-8">
               <div>
                 <div className="text-xs font-bold text-hawk-muted uppercase tracking-widest mb-1">Total da Fatura</div>
-                <div className="text-4xl md:text-5xl font-black text-hawk-red drop-shadow-[0_0_10px_rgba(255,107,107,0.3)]">{formatarMoeda(totaisFatura.totalFatura)}</div>
+                <div className="text-3xl sm:text-4xl md:text-5xl font-black text-hawk-red drop-shadow-[0_0_10px_rgba(255,107,107,0.3)] break-words">{formatarMoeda(totaisFatura.totalFatura)}</div>
                 <div className="text-xs text-hawk-muted mt-2 font-medium">
                   Vence em: <strong className="text-hawk-text">Dia {cartaoSelecionado.diaVencimento}</strong> (Fecha dia {cartaoSelecionado.diaFechamento})
                 </div>
@@ -601,8 +603,8 @@ export default function CartoesTab() {
 
       {/* Modal Pagamento Fatura */}
       {pagamentoFaturaModal && (
-        <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex justify-center items-center p-4 animate-fade-in">
-          <div className="bg-hawk-card w-full max-w-md rounded-2xl p-6 md:p-8 shadow-2xl border border-white/10 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex justify-center items-center p-3 sm:p-4 animate-fade-in">
+          <div className="bg-hawk-card w-full max-w-md rounded-2xl p-5 sm:p-6 md:p-8 shadow-2xl border border-white/10 max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
               <span>💳</span> Pagar Fatura
             </h3>
@@ -624,7 +626,7 @@ export default function CartoesTab() {
                       <span className="font-bold text-hawk-blue text-sm flex items-center gap-2"><span>🏢</span> Empresa</span>
                       <span className="font-black text-hawk-blue">{formatarMoeda(pendenciasFatura.totalEmpresa)}</span>
                     </div>
-                    <select className="w-full bg-hawk-bg border border-hawk-blue/20 rounded-xl px-3 py-2.5 text-hawk-text text-xs focus:outline-none focus:ring-1 focus:border-hawk-blue appearance-none" required value={fonteEmpresa} onChange={e => setFonteEmpresa(e.target.value)}>
+                    <select className="w-full bg-hawk-bg border border-hawk-blue/20 rounded-xl px-3 py-3 text-hawk-text text-sm focus:outline-none focus:ring-1 focus:border-hawk-blue appearance-none" required value={fonteEmpresa} onChange={e => setFonteEmpresa(e.target.value)}>
                       <option value="" disabled>De onde vai sair o dinheiro?</option>
                       <option value="empresa">🏢 Empresa (Saldo: {formatarMoeda(saldos.empresa)})</option>
                       <option value="manutencao">🔧 Manutenção (Saldo: {formatarMoeda(saldos.manutencao)})</option>
@@ -640,7 +642,7 @@ export default function CartoesTab() {
                       <span className="font-bold text-hawk-red text-sm flex items-center gap-2"><span>👤</span> Pessoal</span>
                       <span className="font-black text-hawk-red">{formatarMoeda(pendenciasFatura.totalPessoal)}</span>
                     </div>
-                    <select className="w-full bg-hawk-bg border border-hawk-red/20 rounded-xl px-3 py-2.5 text-hawk-text text-xs focus:outline-none focus:ring-1 focus:border-hawk-red appearance-none" required value={fontePessoal} onChange={e => setFontePessoal(e.target.value)}>
+                    <select className="w-full bg-hawk-bg border border-hawk-red/20 rounded-xl px-3 py-3 text-hawk-text text-sm focus:outline-none focus:ring-1 focus:border-hawk-red appearance-none" required value={fontePessoal} onChange={e => setFontePessoal(e.target.value)}>
                       <option value="" disabled>De onde vai sair o dinheiro?</option>
                       <option value="contas">💳 Contas Fixas (Saldo: {formatarMoeda(saldos.contas)})</option>
                       <option value="livre">💸 Livre - Lazer (Saldo: {formatarMoeda(saldos.livre)})</option>
@@ -654,27 +656,30 @@ export default function CartoesTab() {
                 {pendenciasFatura.totalEsposa > 0 && (
                   <div className="bg-[#fd79a8]/5 border-l-4 border-[#fd79a8] p-4 rounded-r-xl">
                     <div className="flex justify-between items-center mb-3">
-                      <span className="font-bold text-[#fd79a8] text-sm flex items-center gap-2"><span>👩</span> Esposa</span>
+                      <span className="font-bold text-[#fd79a8] text-sm flex items-center gap-2"><span>{emojiEsposa}</span> {rotuloEsposa}</span>
                       <span className="font-black text-[#fd79a8]">{formatarMoeda(pendenciasFatura.totalEsposa)}</span>
                     </div>
-                    <select className="w-full bg-hawk-bg border border-[#fd79a8]/20 rounded-xl px-3 py-2.5 text-hawk-text text-xs focus:outline-none focus:ring-1 focus:border-[#fd79a8] appearance-none" required value={fonteEsposa} onChange={e => setFonteEsposa(e.target.value)}>
+                    <select className="w-full bg-hawk-bg border border-[#fd79a8]/20 rounded-xl px-3 py-3 text-hawk-text text-sm focus:outline-none focus:ring-1 focus:border-[#fd79a8] appearance-none" required value={fonteEsposa} onChange={e => setFonteEsposa(e.target.value)}>
                       <option value="" disabled>De onde vai sair o dinheiro?</option>
+                      <option value="contas">💳 Contas Fixas (Saldo: {formatarMoeda(saldos.contas)})</option>
+                      <option value="livre">💸 Livre - Lazer (Saldo: {formatarMoeda(saldos.livre)})</option>
+                      <option value="emergencia">🚨 Reserva (Saldo: {formatarMoeda(saldos.emergencia)})</option>
                       <option value="saldoConta">🏦 Conta Principal (Saldo: {formatarMoeda(saldos.saldoConta)})</option>
-                      <option value="NENHUMA">❌ Ela pagou por fora / Não descontar</option>
+                      <option value="NENHUMA">❌ {rotuloEsposa} pagou por fora / Não descontar</option>
                     </select>
                   </div>
                 )}
               </div>
 
-              <div className="flex gap-3 pt-4 border-t border-white/5 mt-6">
-                <button 
-                  type="submit" 
-                  className="flex-1 font-bold rounded-xl px-4 py-3 text-sm text-hawk-bg bg-hawk-purple hover:bg-hawk-purple/90 transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed" 
+              <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-white/5 mt-6">
+                <button
+                  type="submit"
+                  className="w-full sm:flex-1 font-bold rounded-xl px-4 py-3.5 sm:py-3 text-sm text-hawk-bg bg-hawk-purple hover:bg-hawk-purple/90 transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={processandoPagamento || (pendenciasFatura.totalEmpresa > 0 && !fonteEmpresa) || (pendenciasFatura.totalPessoal > 0 && !fontePessoal) || (pendenciasFatura.totalEsposa > 0 && !fonteEsposa)}
                 >
                   {processandoPagamento ? 'Processando...' : 'Confirmar Pagamento'}
                 </button>
-                <button type="button" className="px-6 py-3 font-bold text-sm text-hawk-text bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors" onClick={() => setPagamentoFaturaModal(false)}>
+                <button type="button" className="w-full sm:w-auto px-6 py-3.5 sm:py-3 font-bold text-sm text-hawk-text bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors" onClick={() => setPagamentoFaturaModal(false)}>
                   Cancelar
                 </button>
               </div>

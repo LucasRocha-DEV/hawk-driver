@@ -4,9 +4,11 @@ import { db } from '../firebase';
 import { collection, onSnapshot, doc, query, where } from 'firebase/firestore';
 import { formatarMoeda, chaveMes, MESES, despesaAtivaNoPeriodo } from '../utils/helpers';
 import NavegacaoMes from './NavegacaoMes';
+import { usePreferencias } from '../contexts/PreferenciasContext';
 
 export default function ContasTab() {
   const { usuario } = useAuth();
+  const { rotuloEsposa, emojiEsposa } = usePreferencias();
 
   const hoje = new Date();
   const [mesAtual, setMesAtual] = useState(hoje.getMonth());
@@ -92,8 +94,11 @@ export default function ContasTab() {
     despesasFixas.forEach(d => somarItem(d, true));
     gastosVariaveis.forEach(g => somarItem(g, false));
 
-    const sEmpresa = (Number(saldos.empresa) || 0) + (Number(saldos.manutencao) || 0);
-    const sPessoal = (Number(saldos.contas) || 0) + (Number(saldos.emergencia) || 0) + (Number(saldos.livre) || 0);
+    // Barras de SAÚDE usam apenas os fundos de custeio (que não acumulam como reserva):
+    //  - Empresa: só a caixinha Empresa (Manutenção é reserva e infla o indicador)
+    //  - Pessoal: Contas + Conta Principal (Reserva/Emergência e Livre ficam de fora)
+    const sEmpresa = (Number(saldos.empresa) || 0);
+    const sPessoal = (Number(saldos.contas) || 0) + (Number(saldos.saldoConta) || 0);
 
     return {
       totalEmpresa: tEmpresa, totalEmpresaPago: tEmpresaPago, saldoEmpresa: sEmpresa,
@@ -108,7 +113,15 @@ export default function ContasTab() {
   const pendenteEmpresa = totalEmpresa - totalEmpresaPago;
   const pendentePessoalGeral = (totalPessoal + totalEsposa) - (totalPessoalPago + totalEsposaPago);
   
-  const dinheiroGeral = (Number(saldos.saldoConta)||0) + saldoEmpresa + saldoPessoal;
+  // Total real de dinheiro: soma TODAS as caixinhas (inclui reservas) — calculado
+  // de forma independente das barras de saúde para não contar a Conta Principal 2x.
+  const dinheiroGeral =
+    (Number(saldos.saldoConta) || 0) +
+    (Number(saldos.empresa) || 0) +
+    (Number(saldos.manutencao) || 0) +
+    (Number(saldos.contas) || 0) +
+    (Number(saldos.emergencia) || 0) +
+    (Number(saldos.livre) || 0);
   const devendoGeral = pendenteEmpresa + pendentePessoalGeral;
   const saldoLivreReal = dinheiroGeral - devendoGeral;
 
@@ -168,7 +181,7 @@ export default function ContasTab() {
             <h3 className="text-xl font-bold text-hawk-text flex items-center gap-2">
               <span>🏢</span> Saúde da Empresa
             </h3>
-            <span className="text-xs text-hawk-muted font-medium">Custos vs Caixinhas da Empresa</span>
+            <span className="text-xs text-hawk-muted font-medium">Custos vs Caixinha Empresa</span>
           </div>
           
           <div className="flex justify-between items-end mb-2 text-sm">
@@ -206,7 +219,7 @@ export default function ContasTab() {
             <h3 className="text-xl font-bold text-hawk-text flex items-center gap-2">
               <span>👤</span> Saúde Pessoal
             </h3>
-            <span className="text-xs text-hawk-muted font-medium">Suas contas e da esposa vs Caixinhas Pessoais</span>
+            <span className="text-xs text-hawk-muted font-medium">Suas contas e da {rotuloEsposa.toLowerCase()} vs Contas + Conta Principal</span>
           </div>
           
           <div className="flex justify-between items-end mb-2 text-sm">
@@ -231,7 +244,7 @@ export default function ContasTab() {
           
           <div className="mt-auto rounded-xl p-4 bg-pink-500/10 border border-pink-500/20 flex justify-between items-center gap-2">
             <span className="text-sm text-hawk-text/90">
-              👩 Deste montante, Gastos Esposa:
+              {emojiEsposa} Deste montante, Gastos {rotuloEsposa}:
             </span>
             <strong className="text-pink-400 text-base">{formatarMoeda(totalEsposa)}</strong>
           </div>

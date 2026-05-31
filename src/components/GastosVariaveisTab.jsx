@@ -30,6 +30,7 @@ import NavegacaoMes from './NavegacaoMes';
 import SeletorNatureza from './SeletorNatureza';
 import ModalPagamento from './ModalPagamento';
 import ModalCategorias from './ModalCategorias';
+import { usePreferencias } from '../contexts/PreferenciasContext';
 
 const CATEGORIAS_DEFAULT = [
   { id: 'Alimentação', label: '🍔 Alimentação', cor: '#ff6b6b' },
@@ -58,6 +59,7 @@ const METODOS_PAGAMENTO = [
 
 export default function GastosVariaveisTab() {
   const { usuario } = useAuth();
+  const { rotuloEsposa, emojiEsposa } = usePreferencias();
   const agora = new Date();
 
   const [mesAtual, setMesAtual] = useState(agora.getMonth());
@@ -187,16 +189,20 @@ export default function GastosVariaveisTab() {
     let total = 0;
     let totalEmpresa = 0;
     let totalPessoal = 0;
-    
+    let totalEsposa = 0;
+
     gastos.forEach(g => {
       const v = Number(g.valor);
       total += v;
       if (g.natureza === 'EMPRESA') totalEmpresa += v;
-      else totalPessoal += v;
+      else {
+        totalPessoal += v;
+        if (g.isEsposa) totalEsposa += v;
+      }
     });
 
     const quantidade = gastos.length;
-    return { total, quantidade, totalEmpresa, totalPessoal };
+    return { total, quantidade, totalEmpresa, totalPessoal, totalEsposa };
   }, [gastos]);
 
   const dadosGrafico = useMemo(() => {
@@ -537,15 +543,6 @@ export default function GastosVariaveisTab() {
         setAnoAtual={setAnoAtual}
       />
       
-      <div className="flex justify-end mb-4">
-        <button 
-          className="px-4 py-2 text-xs font-bold rounded-xl border border-white/10 bg-white/5 text-hawk-text hover:bg-white/10 transition-colors flex items-center gap-2"
-          onClick={() => setModalCategorias(true)}
-        >
-          <span>⚙️</span> Gerenciar Categorias
-        </button>
-      </div>
-
       {/* CARD PRINCIPAL - TOTAL */}
       <div className="rounded-3xl border border-hawk-red/30 bg-gradient-to-br from-hawk-red/20 to-hawk-card/90 p-8 text-center shadow-card-hover relative overflow-hidden mb-6">
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 mix-blend-overlay"></div>
@@ -558,7 +555,7 @@ export default function GastosVariaveisTab() {
       </div>
 
       {/* CARDS SECUNDÁRIOS */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className={`grid gap-4 mb-6 ${resumo.totalEsposa > 0 ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-3'}`}>
         <div className="rounded-2xl border border-glass-border bg-hawk-card p-5 shadow-card flex flex-col items-center text-center hover:border-hawk-purple/30 transition-colors group">
           <div className="w-10 h-10 rounded-full bg-hawk-purple/10 flex items-center justify-center text-lg mb-2 group-hover:scale-110 transition-transform">🏢</div>
           <span className="text-[10px] font-bold text-hawk-muted uppercase tracking-wide mb-1">Empresa</span>
@@ -569,6 +566,14 @@ export default function GastosVariaveisTab() {
           <span className="text-[10px] font-bold text-hawk-muted uppercase tracking-wide mb-1">Pessoal</span>
           <span className="text-lg font-bold text-hawk-blue">{formatarMoeda(resumo.totalPessoal)}</span>
         </div>
+        {resumo.totalEsposa > 0 && (
+          <div className="rounded-2xl border border-hawk-pink/20 bg-hawk-card p-5 shadow-card flex flex-col items-center text-center hover:border-hawk-pink/40 transition-colors group">
+            <div className="w-10 h-10 rounded-full bg-hawk-pink/10 flex items-center justify-center text-lg mb-2 group-hover:scale-110 transition-transform">{emojiEsposa}</div>
+            <span className="text-[10px] font-bold text-hawk-muted uppercase tracking-wide mb-1">{rotuloEsposa}</span>
+            <span className="text-lg font-bold text-hawk-pink">{formatarMoeda(resumo.totalEsposa)}</span>
+            <span className="text-[9px] text-hawk-dim mt-0.5">incluído no Pessoal</span>
+          </div>
+        )}
         <div className="rounded-2xl border border-glass-border bg-hawk-card p-5 shadow-card flex flex-col items-center text-center hover:border-hawk-green/30 transition-colors group">
           <div className="w-10 h-10 rounded-full bg-hawk-green/10 flex items-center justify-center text-lg mb-2 group-hover:scale-110 transition-transform">📊</div>
           <span className="text-[10px] font-bold text-hawk-muted uppercase tracking-wide mb-1">Quantidade</span>
@@ -577,8 +582,16 @@ export default function GastosVariaveisTab() {
       </div>
 
       <form className="rounded-2xl border border-glass-border bg-hawk-card p-6 shadow-card space-y-4" onSubmit={salvarGasto}>
-        <h3 className="text-lg font-bold text-hawk-text flex items-center gap-2 border-b border-white/5 pb-3">
-          {editandoId ? '✏️ Editar Gasto' : '➕ Novo Gasto Variável'}
+        <h3 className="text-lg font-bold text-hawk-text flex items-center justify-between gap-2 border-b border-white/5 pb-3">
+          <span className="flex items-center gap-2">{editandoId ? '✏️ Editar Gasto' : '➕ Novo Gasto Variável'}</span>
+          <button
+            type="button"
+            onClick={() => setModalCategorias(true)}
+            title="Gerenciar Categorias"
+            className="flex-shrink-0 px-3 py-1.5 text-xs font-bold rounded-xl border border-white/10 bg-white/5 text-hawk-muted hover:text-hawk-text hover:bg-white/10 transition-colors flex items-center gap-1.5"
+          >
+            <span>⚙️</span> <span className="hidden sm:inline">Categorias</span>
+          </button>
         </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -800,7 +813,7 @@ export default function GastosVariaveisTab() {
             {gastosFiltrados.map(gasto => {
               let tagNaturezaCor = gasto.natureza === 'EMPRESA' ? '#a29bfe' : '#74b9ff';
               let tagNaturezaIcone = gasto.natureza === 'EMPRESA' ? '🏢' : '👤';
-              if (gasto.isEsposa) { tagNaturezaCor = '#fd79a8'; tagNaturezaIcone = '👩'; }
+              if (gasto.isEsposa) { tagNaturezaCor = '#fd79a8'; tagNaturezaIcone = emojiEsposa; }
 
               return (
                 <div key={gasto.id} className={`flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 p-4 rounded-2xl border transition-all duration-300 ${gasto.pago ? 'bg-hawk-green/5 border-hawk-green/20' : 'bg-hawk-card border-glass-border hover:border-hawk-purple/30 shadow-card'}`}>
@@ -820,7 +833,7 @@ export default function GastosVariaveisTab() {
                         {mapaLabels[gasto.categoria] || gasto.categoria}
                       </span>
                       <span className="px-2 py-0.5 rounded text-[10px] font-bold text-[#111] flex items-center gap-1" style={{ backgroundColor: tagNaturezaCor }}>
-                        <span>{tagNaturezaIcone}</span> {gasto.natureza === 'EMPRESA' ? 'Empresa' : (gasto.isEsposa ? 'Esposa' : 'Pessoal')}
+                        <span>{tagNaturezaIcone}</span> {gasto.natureza === 'EMPRESA' ? 'Empresa' : (gasto.isEsposa ? rotuloEsposa : 'Pessoal')}
                       </span>
                     </div>
                   </div>

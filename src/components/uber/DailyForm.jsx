@@ -38,6 +38,13 @@ export default function DailyForm({
   salvando,
   onSalvar,
 }) {
+  const hoje = new Date();
+  const isHoje =
+    dataSelecionada instanceof Date &&
+    dataSelecionada.getDate() === hoje.getDate() &&
+    dataSelecionada.getMonth() === hoje.getMonth() &&
+    dataSelecionada.getFullYear() === hoje.getFullYear();
+
   return (
     <div className="space-y-5">
       {/* ── Calendário ── */}
@@ -72,13 +79,40 @@ export default function DailyForm({
 
       {/* ── Formulário ── */}
       <div className="rounded-2xl border border-glass-border bg-hawk-card shadow-card overflow-hidden">
-        <div className="px-5 pt-5 pb-3 border-b border-glass-border">
-          <p className="text-xs font-bold uppercase tracking-widest text-hawk-muted flex items-center gap-2">
-            <span>📝</span> Registro do Dia —{' '}
-            <span className="text-hawk-text normal-case font-semibold">
-              {dataSelecionada.toLocaleDateString('pt-BR')}
-            </span>
-          </p>
+        <div className={`px-5 py-4 border-b ${isHoje ? 'border-glass-border bg-hawk-green/5' : 'border-hawk-yellow/30 bg-hawk-yellow/10'}`}>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex flex-col min-w-0">
+              <span className="text-[11px] font-bold uppercase tracking-widest text-hawk-muted flex items-center gap-2">
+                <span>📝</span> Registro do Dia
+              </span>
+              <span className="text-base md:text-lg font-bold text-hawk-text capitalize mt-0.5 leading-tight">
+                {dataSelecionada.toLocaleDateString('pt-BR', {
+                  weekday: 'long',
+                  day: '2-digit',
+                  month: 'long',
+                  year: 'numeric',
+                })}
+              </span>
+            </div>
+            {isHoje ? (
+              <span className="flex-shrink-0 px-3 py-1 rounded-full text-[11px] font-bold bg-hawk-green/15 text-hawk-green border border-hawk-green/30 flex items-center gap-1">
+                <span>📍</span> Hoje
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setDataSelecionada(new Date())}
+                className="flex-shrink-0 px-3 py-1.5 rounded-xl text-[11px] font-bold bg-hawk-yellow/15 text-hawk-yellow border border-hawk-yellow/40 hover:bg-hawk-yellow/25 transition-colors flex items-center gap-1.5"
+              >
+                ↩ Ir para hoje
+              </button>
+            )}
+          </div>
+          {!isHoje && (
+            <div className="mt-2 text-[11px] font-semibold text-hawk-yellow flex items-center gap-1.5">
+              <span>⚠️</span> Atenção: você está lançando em um dia diferente de hoje.
+            </div>
+          )}
         </div>
 
         <div className="p-5 space-y-5">

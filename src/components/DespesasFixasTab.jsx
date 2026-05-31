@@ -25,6 +25,7 @@ import NavegacaoMes from './NavegacaoMes';
 import SeletorNatureza from './SeletorNatureza';
 import ModalPagamento from './ModalPagamento';
 import ModalCategorias from './ModalCategorias';
+import { usePreferencias } from '../contexts/PreferenciasContext';
 
 const CATEGORIAS_DEFAULT = [
   { id: 'Aluguel / Financiamento', label: '🏠 Aluguel / Financ.', cor: '#ff6b6b' },
@@ -62,6 +63,7 @@ function renderLabelPie({ name, percent }) {
 
 export default function DespesasFixasTab() {
   const { usuario } = useAuth();
+  const { rotuloEsposa, emojiEsposa } = usePreferencias();
 
   const hoje = new Date();
   const [mesAtual, setMesAtual] = useState(hoje.getMonth());
@@ -169,19 +171,23 @@ export default function DespesasFixasTab() {
     return false;
   }, [mesAtual, anoAtual]);
 
-  const { total, pago, pendente, totalEmpresa, totalPessoal } = useMemo(() => {
+  const { total, pago, pendente, totalEmpresa, totalPessoal, totalEsposa } = useMemo(() => {
     let t = 0;
     let p = 0;
     let emp = 0;
     let pes = 0;
+    let esp = 0;
     despesasDoMes.forEach((d) => {
       const val = Number(d.valor);
       t += val;
       if (isPago(d)) p += val;
       if (d.natureza === 'EMPRESA') emp += val;
-      else pes += val;
+      else {
+        pes += val;
+        if (d.isEsposa) esp += val;
+      }
     });
-    return { total: t, pago: p, pendente: t - p, totalEmpresa: emp, totalPessoal: pes };
+    return { total: t, pago: p, pendente: t - p, totalEmpresa: emp, totalPessoal: pes, totalEsposa: esp };
   }, [despesasDoMes, isPago]);
 
   const dadosGrafico = useMemo(() => {
@@ -390,15 +396,6 @@ export default function DespesasFixasTab() {
         onMudouMes={cancelarEdicao}
       />
 
-      <div className="flex justify-end mb-4">
-        <button 
-          className="px-4 py-2 text-xs font-bold rounded-xl border border-white/10 bg-white/5 text-hawk-text hover:bg-white/10 transition-colors flex items-center gap-2"
-          onClick={() => setModalCategorias(true)}
-        >
-          <span>⚙️</span> Gerenciar Categorias
-        </button>
-      </div>
-
       {/* CARD PRINCIPAL - TOTAL */}
       <div className="rounded-3xl border border-hawk-purple/30 bg-gradient-to-br from-hawk-purple/20 to-hawk-card/90 p-8 text-center shadow-card-hover relative overflow-hidden mb-6">
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 mix-blend-overlay"></div>
@@ -411,7 +408,7 @@ export default function DespesasFixasTab() {
       </div>
 
       {/* CARDS SECUNDÁRIOS */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className={`grid gap-4 mb-6 ${totalEsposa > 0 ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-5' : 'grid-cols-2 md:grid-cols-4'}`}>
         <div className="rounded-2xl border border-glass-border bg-hawk-card p-5 shadow-card flex flex-col items-center text-center hover:border-hawk-purple/30 transition-colors group">
           <div className="w-10 h-10 rounded-full bg-hawk-purple/10 flex items-center justify-center text-lg mb-2 group-hover:scale-110 transition-transform">🏢</div>
           <span className="text-[10px] font-bold text-hawk-muted uppercase tracking-wide mb-1">Empresa</span>
@@ -422,6 +419,14 @@ export default function DespesasFixasTab() {
           <span className="text-[10px] font-bold text-hawk-muted uppercase tracking-wide mb-1">Pessoal</span>
           <span className="text-lg font-bold text-hawk-blue">{formatarMoeda(totalPessoal)}</span>
         </div>
+        {totalEsposa > 0 && (
+          <div className="rounded-2xl border border-hawk-pink/20 bg-hawk-card p-5 shadow-card flex flex-col items-center text-center hover:border-hawk-pink/40 transition-colors group">
+            <div className="w-10 h-10 rounded-full bg-hawk-pink/10 flex items-center justify-center text-lg mb-2 group-hover:scale-110 transition-transform">{emojiEsposa}</div>
+            <span className="text-[10px] font-bold text-hawk-muted uppercase tracking-wide mb-1">{rotuloEsposa}</span>
+            <span className="text-lg font-bold text-hawk-pink">{formatarMoeda(totalEsposa)}</span>
+            <span className="text-[9px] text-hawk-dim mt-0.5">incluído no Pessoal</span>
+          </div>
+        )}
         <div className="rounded-2xl border border-glass-border bg-hawk-card p-5 shadow-card flex flex-col items-center text-center hover:border-hawk-green/30 transition-colors group">
           <div className="w-10 h-10 rounded-full bg-hawk-green/10 flex items-center justify-center text-lg mb-2 group-hover:scale-110 transition-transform">✅</div>
           <span className="text-[10px] font-bold text-hawk-muted uppercase tracking-wide mb-1">Pago</span>
@@ -435,8 +440,16 @@ export default function DespesasFixasTab() {
       </div>
 
       <form className="rounded-2xl border border-glass-border bg-hawk-card p-6 shadow-card space-y-4" onSubmit={salvar}>
-        <h3 className="text-lg font-bold text-hawk-text flex items-center gap-2 border-b border-white/5 pb-3">
-          {editandoId ? '✏️ Editar Despesa' : '➕ Nova Despesa Fixa'}
+        <h3 className="text-lg font-bold text-hawk-text flex items-center justify-between gap-2 border-b border-white/5 pb-3">
+          <span className="flex items-center gap-2">{editandoId ? '✏️ Editar Despesa' : '➕ Nova Despesa Fixa'}</span>
+          <button
+            type="button"
+            onClick={() => setModalCategorias(true)}
+            title="Gerenciar Categorias"
+            className="flex-shrink-0 px-3 py-1.5 text-xs font-bold rounded-xl border border-white/10 bg-white/5 text-hawk-muted hover:text-hawk-text hover:bg-white/10 transition-colors flex items-center gap-1.5"
+          >
+            <span>⚙️</span> <span className="hidden sm:inline">Categorias</span>
+          </button>
         </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -597,7 +610,7 @@ export default function DespesasFixasTab() {
             
             let tagNaturezaCor = d.natureza === 'EMPRESA' ? '#a29bfe' : '#74b9ff';
             let tagNaturezaIcone = d.natureza === 'EMPRESA' ? '🏢' : '👤';
-            if (d.isEsposa) { tagNaturezaCor = '#fd79a8'; tagNaturezaIcone = '👩'; }
+            if (d.isEsposa) { tagNaturezaCor = '#fd79a8'; tagNaturezaIcone = emojiEsposa; }
 
             return (
               <div key={d.id} className={`flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 p-4 rounded-2xl border transition-all duration-300 ${pago ? 'bg-hawk-green/5 border-hawk-green/20' : 'bg-hawk-card border-glass-border hover:border-hawk-purple/30 shadow-card'}`}>
@@ -612,7 +625,7 @@ export default function DespesasFixasTab() {
                         {mapaLabels[d.categoria] || d.categoria}
                       </span>
                       <span className="px-2 py-0.5 rounded text-[10px] font-bold text-[#111] flex items-center gap-1" style={{ backgroundColor: tagNaturezaCor }}>
-                        <span>{tagNaturezaIcone}</span> {d.natureza === 'EMPRESA' ? 'Empresa' : (d.isEsposa ? 'Esposa' : 'Pessoal')}
+                        <span>{tagNaturezaIcone}</span> {d.natureza === 'EMPRESA' ? 'Empresa' : (d.isEsposa ? rotuloEsposa : 'Pessoal')}
                       </span>
                     </div>
                   </div>
