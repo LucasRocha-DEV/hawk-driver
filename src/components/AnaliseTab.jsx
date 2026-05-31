@@ -1,11 +1,30 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../firebase';
-import { collection, onSnapshot, doc, getDoc, setDoc, getDocs, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, getDoc, setDoc, getDocs, deleteDoc, query, orderBy, addDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import ReactMarkdown from 'react-markdown';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { formatarMoeda, parsarHoras } from '../utils/helpers';
+import ChatChart from './chat/ChatChart';
+import HistoricoConversas from './chat/HistoricoConversas';
+
+// Renderizadores customizados do react-markdown: intercepta blocos "hawkchart"
+// para desenhar um gráfico nativo (Recharts) em vez de mostrar o JSON cru.
+const markdownComponents = {
+  pre: ({ children }) => <>{children}</>,
+  code: ({ className, children, ...props }) => {
+    const match = /language-(\w+)/.exec(className || '');
+    if (match?.[1] === 'hawkchart') {
+      return <ChatChart raw={String(children).trim()} />;
+    }
+    return (
+      <code className="bg-black/30 rounded px-1 py-0.5 text-xs" {...props}>
+        {children}
+      </code>
+    );
+  },
+};
 
 // Perguntas rápidas que o motorista pode tocar dentro do chat
 const PERGUNTAS_SUGERIDAS = [
@@ -58,7 +77,12 @@ export default function AnaliseTab() {
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
-  
+
+  // ─── Histórico de Conversas (estilo ChatGPT) ───
+  const [conversas, setConversas] = useState([]);
+  const [conversaAtivaId, setConversaAtivaId] = useState(null);
+  const [showHistorico, setShowHistorico] = useState(false);
+
   const chatEndRef = useRef(null);
 
   // Auto-scroll chat
@@ -80,6 +104,54 @@ export default function AnaliseTab() {
     };
     loadConfig();
   }, [usuario]);
+
+  // ─── Listener: lista de conversas salvas (ordenadas pela mais recente) ───
+  useEffect(() => {
+    if (!usuario) return;
+    const ref = collection(db, 'usuarios', usuario.uid, 'conversas');
+    const q = query(ref, orderBy('atualizadoEm', 'desc'));
+    const unsub = onSnapshot(q, (snap) => {
+      setConversas(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+    return () => unsub();
+  }, [usuario]);
+
+  // ─── Helpers de conversa ───
+  const novaConversa = () => {
+    setMessages([]);
+    setConversaAtivaId(null);
+    setShowHistorico(false);
+  };
+
+  const carregarConversa = (c) => {
+    setMessages(c.mensagens || []);
+    setConversaAtivaId(c.id);
+    setShowHistorico(false);
+  };
+
+  const apagarConversa = async (id) => {
+    if (!usuario) return;
+    try {
+      await deleteDoc(doc(db, 'usuarios', usuario.uid, 'conversas', id));
+      if (id === conversaAtivaId) novaConversa();
+    } catch (err) {
+      console.error('Erro ao apagar conversa:', err);
+    }
+  };
+
+  // Gera um título curto (3-5 palavras) em background; silencioso se falhar.
+  const gerarTituloIA = async (genAI, pergunta, resposta) => {
+    try {
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+      const prompt = `Resuma o tema desta conversa em 3 a 5 palavras, em português, sem aspas e sem ponto final.\n\nPergunta: ${pergunta}\nResposta: ${resposta}`;
+      const result = await model.generateContent(prompt);
+      const titulo = result.response.text().trim().replace(/^["']|["']$/g, '').slice(0, 50);
+      return titulo || null;
+    } catch (err) {
+      console.error('Erro ao gerar título:', err);
+      return null;
+    }
+  };
 
   // Load All Data for Dashboard and AI
   useEffect(() => {
@@ -337,6 +409,23 @@ REGRAS DE RESPOSTA (MUITO IMPORTANTE — o público são motoristas na correria,
 - Destaque sempre 1 ação prática que o motorista pode fazer hoje.
 - Use no máximo 1 ou 2 emojis. Evite parágrafos longos.
 
+=== GRÁFICOS ===
+Quando um gráfico ajudar a responder (comparar dias/turnos/categorias, evolução no tempo, distribuição, ou destacar UM número), inclua EXATAMENTE UM bloco de código com a linguagem "hawkchart" contendo JSON válido. Regras:
+- Use SEMPRE números reais extraídos dos dados do usuário acima. Nunca invente valores.
+- Máximo 7 pontos de dados. Rótulos curtos.
+- Coloque o bloco logo após uma frase curta de contexto. Não repita os números no texto.
+- Se um gráfico não ajudar, responda só em texto.
+
+Formato do JSON:
+{ "type": "bar" | "line" | "pie" | "kpi", "title": "Título curto", "unit": "R$" (ou "" / "km" / "viagens"), "data": [ { "label": "Seg", "value": 120.5 } ] }
+Para "kpi", use um único item em data, ex.: [ { "label": "por hora", "value": 28.5 } ].
+
+Exemplo de resposta:
+Seus melhores dias por ganho/hora:
+\`\`\`hawkchart
+{"type":"bar","title":"Ganho por hora","unit":"R$","data":[{"label":"Sex","value":32.4},{"label":"Sáb","value":29.1},{"label":"Dom","value":24.8}]}
+\`\`\`
+
 TIPO DE VEÍCULO DO USUÁRIO: ${tipoVeiculo}
 ${tipoVeiculo === 'eletrico' ? '(Lembre-se que veículos elétricos têm gastos com "combustível" quase nulos. Não alerte sobre gastos baixos com isso).' : ''}
 
@@ -364,8 +453,34 @@ ${JSON.stringify(despesasVariaveisAtuais)}
       const chat = model.startChat({ history });
       const result = await chat.sendMessage(userMsg);
       const response = await result.response;
-      
-      setMessages(prev => [...prev, { role: 'model', text: response.text() }]);
+      const resposta = response.text();
+
+      // Estado completo da conversa após esta troca (para UI + persistência)
+      const novas = [...messages, { role: 'user', text: userMsg }, { role: 'model', text: resposta }];
+      setMessages(novas);
+
+      // ─── Persistir no Firestore ───
+      if (usuario) {
+        if (conversaAtivaId) {
+          await updateDoc(doc(db, 'usuarios', usuario.uid, 'conversas', conversaAtivaId), {
+            mensagens: novas,
+            atualizadoEm: serverTimestamp(),
+          });
+        } else {
+          const ref = await addDoc(collection(db, 'usuarios', usuario.uid, 'conversas'), {
+            titulo: userMsg.slice(0, 40),   // título provisório (truncado)
+            tituloGerado: false,
+            mensagens: novas,
+            criadoEm: serverTimestamp(),
+            atualizadoEm: serverTimestamp(),
+          });
+          setConversaAtivaId(ref.id);
+          // Upgrade do título em background (não trava a UI)
+          gerarTituloIA(genAI, userMsg, resposta).then((t) => {
+            if (t) updateDoc(ref, { titulo: t, tituloGerado: true }).catch(() => {});
+          });
+        }
+      }
     } catch (err) {
       console.error(err);
       setMessages(prev => [...prev, { role: 'model', text: 'Desculpe, ocorreu um erro ao gerar a resposta. Verifique sua API Key ou sua conexão.' }]);
@@ -509,7 +624,7 @@ ${JSON.stringify(despesasVariaveisAtuais)}
         </div>
 
         {/* LADO DIREITO: CHATBOT IA */}
-        <div className="rounded-2xl border border-hawk-purple/30 bg-gradient-to-br from-hawk-bg to-hawk-card p-0 shadow-card flex flex-col h-[700px] lg:h-auto overflow-hidden">
+        <div className="relative rounded-2xl border border-hawk-purple/30 bg-gradient-to-br from-hawk-bg to-hawk-card p-0 shadow-card flex flex-col h-[700px] lg:h-auto overflow-hidden">
           {/* Chat Header */}
           <div className="p-4 border-b border-glass-border bg-hawk-purple/10 flex justify-between items-center">
             <div>
@@ -520,14 +635,42 @@ ${JSON.stringify(despesasVariaveisAtuais)}
                 Pergunte sobre seus dados, dicas e estratégias.
               </p>
             </div>
-            <button 
-              onClick={() => setIsConfigOpen(!isConfigOpen)}
-              className="text-hawk-muted hover:text-hawk-purple transition-colors p-2 rounded-lg hover:bg-hawk-purple/10"
-              title="Configurações da IA"
-            >
-              ⚙️
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setShowHistorico(true)}
+                className="text-hawk-muted hover:text-hawk-purple transition-colors p-2 rounded-lg hover:bg-hawk-purple/10"
+                title="Conversas salvas"
+              >
+                ☰
+              </button>
+              <button
+                onClick={novaConversa}
+                className="text-hawk-muted hover:text-hawk-purple transition-colors p-2 rounded-lg hover:bg-hawk-purple/10"
+                title="Nova conversa"
+              >
+                ＋
+              </button>
+              <button
+                onClick={() => setIsConfigOpen(!isConfigOpen)}
+                className="text-hawk-muted hover:text-hawk-purple transition-colors p-2 rounded-lg hover:bg-hawk-purple/10"
+                title="Configurações da IA"
+              >
+                ⚙️
+              </button>
+            </div>
           </div>
+
+          {/* Drawer de histórico (desliza sobre o painel) */}
+          {showHistorico && (
+            <HistoricoConversas
+              conversas={conversas}
+              conversaAtivaId={conversaAtivaId}
+              onSelecionar={carregarConversa}
+              onApagar={apagarConversa}
+              onNova={novaConversa}
+              onFechar={() => setShowHistorico(false)}
+            />
+          )}
 
           {/* Configurações Dropdown */}
           {isConfigOpen && (
@@ -591,7 +734,7 @@ ${JSON.stringify(despesasVariaveisAtuais)}
                 <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${msg.role === 'user' ? 'bg-hawk-purple text-white rounded-br-none' : 'bg-hawk-input border border-glass-border text-hawk-text rounded-bl-none'}`}>
                     <div className="prose prose-sm prose-invert max-w-none prose-p:leading-relaxed prose-strong:text-current">
-                      <ReactMarkdown>{msg.text}</ReactMarkdown>
+                      <ReactMarkdown components={markdownComponents}>{msg.text}</ReactMarkdown>
                     </div>
                   </div>
                 </div>

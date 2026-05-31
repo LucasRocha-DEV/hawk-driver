@@ -2,8 +2,10 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 
-// ⚠️ As chaves reais ficam no arquivo .env (nunca no código)
-// Copie .env.example como .env e preencha com seus valores
+// Config do Firebase Web — estes valores são PÚBLICOS por design (vão para o
+// navegador de qualquer forma). Não são segredo. A proteção dos dados é feita
+// pelas Firestore Security Rules (ver firestore.rules), que restringem cada
+// usuário ao seu próprio namespace em /usuarios/{uid}.
 const firebaseConfig = {
   apiKey: "AIzaSyApTKmaEmJ3Z4Wh1HfHEVxz03YxG6P567k",
   authDomain: "uberfinances-e7d4e.firebaseapp.com",

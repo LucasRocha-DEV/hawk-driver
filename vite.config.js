@@ -6,6 +6,7 @@ export default defineConfig({
   server: {
     port: 3000,
     open: true,
+    allowedHosts: 'all',
   },
   test: {
     // Ambiente de testes que simula o browser (DOM)
