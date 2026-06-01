@@ -1,4 +1,5 @@
 import Calendar from 'react-calendar';
+import { formatarMoeda, TIPOS_COMBUSTIVEL } from '../../utils/helpers';
 
 const CATEGORIAS_DISPONIVEIS = ['UberX', 'Comfort', 'Black', '99 (App)', 'Flash', 'Moto'];
 
@@ -27,7 +28,19 @@ export default function DailyForm({
   tileClassName,
   km, setKm,
   totalBruto, setTotalBruto,
-  gastosGerais, setGastosGerais,
+  combustivel,
+  onCombustivelChange,
+  combustivelEstimado,
+  custoPorKm,
+  onUsarEstimativa,
+  gastosGeraisItens,
+  onAdicionarItemGasto,
+  onAtualizarItemGasto,
+  onRemoverItemGasto,
+  veiculos,
+  veiculoDoDia,
+  veiculoIdDia,
+  setVeiculoIdDia,
   viagens, setViagens,
   horaInicio, setHoraInicio,
   horaFim, setHoraFim,
@@ -116,6 +129,30 @@ export default function DailyForm({
         </div>
 
         <div className="p-5 space-y-5">
+          {/* Seletor de veículo do dia */}
+          {veiculos && veiculos.length > 0 ? (
+            <Field label="🚙 Veículo do dia">
+              <select
+                className={`${inputClass} cursor-pointer`}
+                value={veiculoIdDia || ''}
+                onChange={e => setVeiculoIdDia(e.target.value)}
+              >
+                {veiculos.map(v => {
+                  const info = TIPOS_COMBUSTIVEL[v.combustivel] || { emoji: '🚗' };
+                  return (
+                    <option key={v.id} value={v.id}>
+                      {v.carroceria === 'moto' ? '🏍️' : '🚗'} {v.nome} — {info.emoji} {info.label || v.combustivel}
+                    </option>
+                  );
+                })}
+              </select>
+            </Field>
+          ) : (
+            <p className="text-xs text-hawk-muted bg-hawk-input border border-glass-border rounded-xl px-3 py-2.5">
+              💡 Cadastre seu veículo em <strong className="text-hawk-text">⚙️ Configurações → Meus Veículos</strong> para o app estimar o combustível automaticamente.
+            </p>
+          )}
+
           {/* Grid de inputs */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             <Field label="Km Rodados">
@@ -138,13 +175,13 @@ export default function DailyForm({
               />
             </Field>
 
-            <Field label="Gastos Gerais (R$)">
+            <Field label="⛽ Combustível (R$)">
               <input
                 type="number"
                 className={inputClass}
                 placeholder="Ex: 80.00"
-                value={gastosGerais}
-                onChange={e => setGastosGerais(e.target.value)}
+                value={combustivel}
+                onChange={e => onCombustivelChange(e.target.value)}
               />
             </Field>
 
@@ -175,6 +212,92 @@ export default function DailyForm({
                 onChange={e => setHoraFim(e.target.value)}
               />
             </Field>
+          </div>
+
+          {/* Estimativa de combustível */}
+          {veiculoDoDia && custoPorKm > 0 && (
+            <div className="flex items-center justify-between gap-3 -mt-2 text-xs">
+              <span className="text-hawk-muted">
+                ⛽ Estimado:{' '}
+                <strong className="text-hawk-green">{formatarMoeda(combustivelEstimado)}</strong>{' '}
+                <span className="text-hawk-dim">({formatarMoeda(custoPorKm)}/km)</span>
+              </span>
+              <button
+                type="button"
+                onClick={onUsarEstimativa}
+                className="px-3 py-1 rounded-lg font-semibold text-hawk-green border border-hawk-green/30 hover:bg-hawk-green/10 transition-colors"
+              >
+                Usar estimativa
+              </button>
+            </div>
+          )}
+
+          {/* Veículo elétrico grátis: abastecimento avulso */}
+          {veiculoDoDia?.combustivel === 'eletrico' && veiculoDoDia?.modoEletrico === 'gratis' && (
+            <div className="-mt-2 text-xs text-hawk-blue bg-hawk-blue/10 border border-hawk-blue/25 rounded-xl px-3 py-2 flex items-center gap-2">
+              <span>⚡</span>
+              <span>
+                Carga em casa é grátis (R$ 0). <strong>Abasteceu/carregou na rua?</strong> Digite o valor no campo{' '}
+                <strong>⛽ Combustível</strong> acima.
+              </span>
+            </div>
+          )}
+
+          {/* ── Gastos Gerais do dia (itens) ── */}
+          <div className="rounded-xl border border-glass-border bg-hawk-input/50 p-4 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-semibold text-hawk-muted uppercase tracking-wide flex items-center gap-1.5">
+                <span>💸</span> Gastos Gerais do dia
+              </p>
+              <span className="text-xs text-hawk-dim">
+                Total: <strong className="text-hawk-text">{formatarMoeda(
+                  (gastosGeraisItens || []).reduce((s, i) => s + (Number(i.valor) || 0), 0)
+                )}</strong>
+              </span>
+            </div>
+
+            {(!gastosGeraisItens || gastosGeraisItens.length === 0) && (
+              <p className="text-xs text-hawk-dim">
+                Adicione gastos como almoço, pedágio, lavagem... A IA usa a descrição para te orientar sobre onde está gastando mais.
+              </p>
+            )}
+
+            <div className="space-y-2">
+              {(gastosGeraisItens || []).map((item, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    className={`${inputClass} flex-1`}
+                    placeholder="Descrição (ex: Almoço)"
+                    value={item.descricao}
+                    onChange={e => onAtualizarItemGasto(idx, 'descricao', e.target.value)}
+                  />
+                  <input
+                    type="number"
+                    className={`${inputClass} w-24`}
+                    placeholder="R$"
+                    value={item.valor}
+                    onChange={e => onAtualizarItemGasto(idx, 'valor', e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => onRemoverItemGasto(idx)}
+                    title="Remover"
+                    className="p-2 rounded-lg text-hawk-muted hover:text-hawk-red hover:bg-hawk-red/10 transition-colors flex-shrink-0"
+                  >
+                    🗑️
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={onAdicionarItemGasto}
+              className="w-full py-2 rounded-lg border border-dashed border-hawk-green/40 text-hawk-green text-xs font-semibold hover:bg-hawk-green/5 transition-colors"
+            >
+              + Adicionar gasto
+            </button>
           </div>
 
           {/* Horas totais */}

@@ -9,6 +9,73 @@
 @tailwind components;
 @tailwind utilities;
 
+/* =========================================================
+   DESIGN TOKENS — Temas (claro / escuro)
+   Os canais ficam como "R G B" para o Tailwind aplicar opacidade
+   via <alpha-value> (ex.: bg-hawk-green/10). Trocar de tema = trocar
+   o atributo data-theme na raiz do documento.
+   ========================================================= */
+:root,
+[data-theme="dark"] {
+  /* Backgrounds */
+  --hawk-bg:      10 10 15;
+  --hawk-bg2:     18 18 26;
+  --hawk-card:    26 26 46;
+  --hawk-input:   22 22 42;
+  --hawk-hover:   34 34 58;
+  /* Glass (overlays claros sobre fundo escuro) */
+  --glass:        rgba(255,255,255,0.03);
+  --glass-border: rgba(255,255,255,0.06);
+  --glass-hover:  rgba(255,255,255,0.06);
+  /* Accent */
+  --hawk-green:   0 212 170;
+  --hawk-purple:  108 92 231;
+  --hawk-red:     255 107 107;
+  --hawk-yellow:  255 217 61;
+  --hawk-blue:    9 132 227;
+  --hawk-pink:    253 121 168;
+  --hawk-orange:  225 112 85;
+  --hawk-violet:  162 155 254;
+  --hawk-teal:    0 184 148;
+  /* Text (muted/dim mais vivos para melhor legibilidade) */
+  --hawk-text:    240 240 245;
+  --hawk-muted:   165 168 198;
+  --hawk-dim:     120 124 150;
+  /* Scrollbar */
+  --scroll-thumb:        rgba(255,255,255,0.08);
+  --scroll-thumb-hover:  rgba(255,255,255,0.15);
+}
+
+[data-theme="light"] {
+  /* Backgrounds */
+  --hawk-bg:      245 246 250;
+  --hawk-bg2:     237 239 245;
+  --hawk-card:    255 255 255;
+  --hawk-input:   241 243 248;
+  --hawk-hover:   228 232 241;
+  /* Glass (overlays escuros sutis sobre fundo claro) */
+  --glass:        rgba(15,18,40,0.025);
+  --glass-border: rgba(15,18,40,0.10);
+  --glass-hover:  rgba(15,18,40,0.05);
+  /* Accent (tons levemente mais profundos p/ legibilidade no claro) */
+  --hawk-green:   0 168 138;
+  --hawk-purple:  91 76 204;
+  --hawk-red:     224 74 74;
+  --hawk-yellow:  176 134 0;
+  --hawk-blue:    8 116 200;
+  --hawk-pink:    214 70 130;
+  --hawk-orange:  200 88 60;
+  --hawk-violet:  118 104 224;
+  --hawk-teal:    0 150 120;
+  /* Text (mais escuros = mais legíveis no fundo claro) */
+  --hawk-text:    17 19 30;
+  --hawk-muted:   64 68 88;
+  --hawk-dim:     110 115 135;
+  /* Scrollbar */
+  --scroll-thumb:        rgba(15,18,40,0.15);
+  --scroll-thumb-hover:  rgba(15,18,40,0.28);
+}
+
 /* ── Base resets ── */
 @layer base {
   *, *::before, *::after { box-sizing: border-box; }
@@ -25,23 +92,23 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb {
     @apply rounded-full;
-    background: rgba(255,255,255,0.08);
+    background: var(--scroll-thumb);
   }
-  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--scroll-thumb-hover); }
 }
 
 /* ── Utilitários custom (glassmorphism, gradients) ── */
 @layer utilities {
   .glass {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.06);
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
   }
 
   .glass-hover:hover {
-    background: rgba(255,255,255,0.06);
-    border-color: rgba(255,255,255,0.10);
+    background: var(--glass-hover);
+    border-color: var(--glass-border);
   }
 
   .gradient-green {
@@ -71,15 +138,15 @@
   }
 
   .border-glass {
-    border: 1px solid rgba(255,255,255,0.06);
+    border: 1px solid var(--glass-border);
   }
 
   .border-glass-green {
-    border: 1px solid rgba(0,212,170,0.25);
+    border: 1px solid rgb(var(--hawk-green) / 0.25);
   }
 
   .border-glass-purple {
-    border: 1px solid rgba(108,92,231,0.25);
+    border: 1px solid rgb(var(--hawk-purple) / 0.25);
   }
 
   /* Orb decorativo (login screen) */
@@ -91,60 +158,60 @@
 
 /* ── Overrides react-calendar ── */
 .react-calendar {
-  background: #1a1a2e !important;
-  border: 1px solid rgba(255,255,255,0.06) !important;
+  background: rgb(var(--hawk-card)) !important;
+  border: 1px solid var(--glass-border) !important;
   border-radius: 12px !important;
-  color: #f0f0f5 !important;
+  color: rgb(var(--hawk-text)) !important;
   font-family: 'Inter', sans-serif !important;
   width: 100% !important;
 }
 .react-calendar__tile {
-  color: #f0f0f5 !important;
+  color: rgb(var(--hawk-text)) !important;
   border-radius: 8px !important;
   padding: 8px 4px !important;
 }
 .react-calendar__tile--active {
-  background: #00d4aa !important;
-  color: #0a0a0f !important;
+  background: rgb(var(--hawk-green)) !important;
+  color: rgb(var(--hawk-bg)) !important;
 }
 .react-calendar__tile:hover {
-  background: rgba(255,255,255,0.06) !important;
+  background: var(--glass-hover) !important;
 }
 .react-calendar__navigation button {
-  color: #f0f0f5 !important;
+  color: rgb(var(--hawk-text)) !important;
   font-size: 14px !important;
 }
 .react-calendar__navigation button:hover {
-  background: rgba(255,255,255,0.06) !important;
+  background: var(--glass-hover) !important;
   border-radius: 8px !important;
 }
 .react-calendar__month-view__weekdays {
-  color: #8888a8 !important;
+  color: rgb(var(--hawk-muted)) !important;
   font-size: 11px !important;
   text-transform: uppercase !important;
 }
 .react-calendar__tile--now {
-  background: rgba(0,212,170,0.12) !important;
+  background: rgb(var(--hawk-green) / 0.12) !important;
 }
 .react-calendar__month-view__days__day--weekend {
-  color: #ff6b6b !important;
+  color: rgb(var(--hawk-red)) !important;
 }
 
 /* ── Recharts overrides ── */
 .recharts-tooltip-wrapper .recharts-default-tooltip {
-  background: #1a1a2e !important;
-  border: 1px solid rgba(255,255,255,0.08) !important;
+  background: rgb(var(--hawk-card)) !important;
+  border: 1px solid var(--glass-border) !important;
   border-radius: 10px !important;
-  color: #f0f0f5 !important;
+  color: rgb(var(--hawk-text)) !important;
 }
-.recharts-text { fill: #8888a8 !important; }
-.recharts-cartesian-axis-tick-value { fill: #8888a8 !important; }
+.recharts-text { fill: rgb(var(--hawk-muted)) !important; }
+.recharts-cartesian-axis-tick-value { fill: rgb(var(--hawk-muted)) !important; }
 
 /* ── Calendar tile highlights (geradas dinamicamente pelo react-calendar) ── */
 .calendar-day-highlight abbr {
-  background: rgba(0, 212, 170, 0.18) !important;
+  background: rgb(var(--hawk-green) / 0.18) !important;
   border-radius: 50% !important;
-  color: #00d4aa !important;
+  color: rgb(var(--hawk-green)) !important;
   font-weight: 700 !important;
   display: inline-block;
   width: 28px;
@@ -152,9 +219,9 @@
   line-height: 28px;
 }
 .calendar-day-pendente abbr {
-  background: rgba(255, 217, 61, 0.18) !important;
+  background: rgb(var(--hawk-yellow) / 0.18) !important;
   border-radius: 50% !important;
-  color: #ffd93d !important;
+  color: rgb(var(--hawk-yellow)) !important;
   font-weight: 700 !important;
   display: inline-block;
   width: 28px;

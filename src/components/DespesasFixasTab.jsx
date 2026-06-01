@@ -53,6 +53,9 @@ const formInicial = {
   anoFim: '',
   natureza: 'PESSOAL',
   isEsposa: false,
+  pessoaId: null,
+  pessoaNome: '',
+  pessoaEmoji: '',
   cartaoId: ''
 };
 
@@ -63,7 +66,7 @@ function renderLabelPie({ name, percent }) {
 
 export default function DespesasFixasTab() {
   const { usuario } = useAuth();
-  const { rotuloEsposa, emojiEsposa } = usePreferencias();
+  const { rotuloEsposa, emojiEsposa, pessoasVinculadas } = usePreferencias();
 
   const hoje = new Date();
   const [mesAtual, setMesAtual] = useState(hoje.getMonth());
@@ -223,7 +226,10 @@ export default function DespesasFixasTab() {
       vencimento: form.vencimento ? Number(form.vencimento) : null,
       recorrente: form.recorrente,
       natureza: form.natureza,
-      isEsposa: form.isEsposa,
+      isEsposa: !!form.pessoaId,
+      pessoaId: form.pessoaId || null,
+      pessoaNome: form.pessoaNome || '',
+      pessoaEmoji: form.pessoaEmoji || '',
       cartaoId: form.cartaoId || null
     };
 
@@ -279,7 +285,12 @@ export default function DespesasFixasTab() {
       mesFim: despesa.mesFim ?? '',
       anoFim: despesa.anoFim ?? '',
       natureza: despesa.natureza || 'PESSOAL',
-      isEsposa: despesa.isEsposa || false,
+      // Pessoa: usa pessoaId salvo; legado (só isEsposa) cai na 1ª pessoa cadastrada.
+      ...(despesa.pessoaId
+        ? { pessoaId: despesa.pessoaId, pessoaNome: despesa.pessoaNome || rotuloEsposa, pessoaEmoji: despesa.pessoaEmoji || emojiEsposa }
+        : despesa.isEsposa
+        ? { pessoaId: pessoasVinculadas[0]?.id || 'principal', pessoaNome: pessoasVinculadas[0]?.nome || rotuloEsposa, pessoaEmoji: pessoasVinculadas[0]?.emoji || emojiEsposa }
+        : { pessoaId: null, pessoaNome: '', pessoaEmoji: '' }),
       cartaoId: despesa.cartaoId || ''
     });
     setEditandoId(despesa.id);
@@ -516,8 +527,13 @@ export default function DespesasFixasTab() {
             <SeletorNatureza
               natureza={form.natureza}
               setNatureza={(n) => setForm({...form, natureza: n})}
-              isEsposa={form.isEsposa}
-              setIsEsposa={(v) => setForm({...form, isEsposa: v})}
+              pessoaId={form.pessoaId}
+              onSelectPessoa={(p) => setForm({
+                ...form,
+                pessoaId: p ? p.id : null,
+                pessoaNome: p ? p.nome : '',
+                pessoaEmoji: p ? p.emoji : '',
+              })}
             />
           </div>
 
@@ -610,7 +626,8 @@ export default function DespesasFixasTab() {
             
             let tagNaturezaCor = d.natureza === 'EMPRESA' ? '#a29bfe' : '#74b9ff';
             let tagNaturezaIcone = d.natureza === 'EMPRESA' ? '🏢' : '👤';
-            if (d.isEsposa) { tagNaturezaCor = '#fd79a8'; tagNaturezaIcone = emojiEsposa; }
+            if (d.isEsposa) { tagNaturezaCor = '#fd79a8'; tagNaturezaIcone = d.pessoaEmoji || emojiEsposa; }
+            const tagPessoaNome = d.pessoaNome || rotuloEsposa;
 
             return (
               <div key={d.id} className={`flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 p-4 rounded-2xl border transition-all duration-300 ${pago ? 'bg-hawk-green/5 border-hawk-green/20' : 'bg-hawk-card border-glass-border hover:border-hawk-purple/30 shadow-card'}`}>
@@ -625,7 +642,7 @@ export default function DespesasFixasTab() {
                         {mapaLabels[d.categoria] || d.categoria}
                       </span>
                       <span className="px-2 py-0.5 rounded text-[10px] font-bold text-[#111] flex items-center gap-1" style={{ backgroundColor: tagNaturezaCor }}>
-                        <span>{tagNaturezaIcone}</span> {d.natureza === 'EMPRESA' ? 'Empresa' : (d.isEsposa ? rotuloEsposa : 'Pessoal')}
+                        <span>{tagNaturezaIcone}</span> {d.natureza === 'EMPRESA' ? 'Empresa' : (d.isEsposa ? tagPessoaNome : 'Pessoal')}
                       </span>
                     </div>
                   </div>

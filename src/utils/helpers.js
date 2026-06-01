@@ -10,6 +10,21 @@ export const MESES = [
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
 ];
 
+/**
+ * Tipos de combustível suportados pelos veículos cadastrados.
+ * A `unidade` define como o rendimento (consumo) e o preço são interpretados:
+ *   L   → km por litro / R$ por litro
+ *   m³  → km por metro cúbico / R$ por metro cúbico (GNV)
+ *   kWh → km por kWh / R$ por kWh (elétrico)
+ */
+export const TIPOS_COMBUSTIVEL = {
+  gasolina: { label: 'Gasolina', unidade: 'L',   emoji: '⛽' },
+  etanol:   { label: 'Etanol',   unidade: 'L',   emoji: '🌱' },
+  diesel:   { label: 'Diesel',   unidade: 'L',   emoji: '🛢️' },
+  gnv:      { label: 'GNV',       unidade: 'm³',  emoji: '💨' },
+  eletrico: { label: 'Elétrico',  unidade: 'kWh', emoji: '⚡' },
+};
+
 export const CAIXINHAS_INFO = {
   emergencia:      { nome: 'Reserva de Emergência', emoji: '🚨', cor: '#ffd93d', grupo: 'pessoal' },
   manutencao:      { nome: 'Manutenção',            emoji: '🔧', cor: '#ff6b6b', grupo: 'empresa' },
@@ -94,6 +109,67 @@ export function formatarTimestamp(ts) {
 }
 
 // ─── Cálculos ───
+
+/**
+ * Estima o custo de combustível/energia de uma viagem a partir do veículo e do km rodado.
+ *
+ * Suporta todos os perfis de motorista:
+ *   - Combustível líquido (gasolina/etanol/diesel) e GNV: custo = (km / consumo) * precoUnidade
+ *   - Elétrico 'medido': mesma fórmula (consumo em km/kWh, preço em R$/kWh)
+ *   - Elétrico 'carga_fixa': custo = (km / kmPorCarga) * valorCarga
+ *   - Elétrico 'gratis': custo = 0 (motorista que não paga energia)
+ *
+ * @param {object|null} veiculo - Documento do veículo ({ combustivel, consumo, precoUnidade, modoEletrico, valorCarga, kmPorCarga })
+ * @param {number|string} km - Quilômetros rodados
+ * @returns {{ custo: number, custoPorKm: number }} Sempre números finitos (0 quando indeterminado).
+ */
+export function estimarCustoCombustivel(veiculo, km) {
+  const kmNum = Number(km) || 0;
+  const zero = { custo: 0, custoPorKm: 0 };
+  if (!veiculo || kmNum <= 0) return zero;
+
+  let custo = 0;
+
+  if (veiculo.combustivel === 'eletrico') {
+    const modo = veiculo.modoEletrico || 'medido';
+    if (modo === 'gratis') {
+      custo = 0;
+    } else if (modo === 'carga_fixa') {
+      const kmPorCarga = Number(veiculo.kmPorCarga) || 0;
+      const valorCarga = Number(veiculo.valorCarga) || 0;
+      custo = kmPorCarga > 0 ? (kmNum / kmPorCarga) * valorCarga : 0;
+    } else {
+      const consumo = Number(veiculo.consumo) || 0;
+      const preco = Number(veiculo.precoUnidade) || 0;
+      custo = consumo > 0 ? (kmNum / consumo) * preco : 0;
+    }
+  } else {
+    const consumo = Number(veiculo.consumo) || 0;
+    const preco = Number(veiculo.precoUnidade) || 0;
+    custo = consumo > 0 ? (kmNum / consumo) * preco : 0;
+  }
+
+  if (!isFinite(custo) || custo < 0) custo = 0;
+  return { custo, custoPorKm: kmNum > 0 ? custo / kmNum : 0 };
+}
+
+/**
+ * Soma as despesas de um registro diário, compatível com o formato antigo.
+ *
+ * Formato novo: { combustivel: number, gastosGeraisItens: [{ valor, descricao }] }
+ * Formato legado: { gastosGerais: number } (campo único, somava tudo)
+ *
+ * @param {object} r - Documento do registro diário
+ * @returns {number} Total de despesas do dia.
+ */
+export function totalDespesasRegistro(r) {
+  if (!r) return 0;
+  if (r.combustivel != null || r.gastosGeraisItens != null) {
+    const itens = (r.gastosGeraisItens || []).reduce((s, i) => s + (Number(i.valor) || 0), 0);
+    return (Number(r.combustivel) || 0) + itens;
+  }
+  return Number(r.gastosGerais) || 0; // legado
+}
 
 /**
  * Parseia uma string de horas como "8h30" ou "8.5" e retorna horas decimais.

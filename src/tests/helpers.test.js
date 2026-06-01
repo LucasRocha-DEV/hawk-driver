@@ -15,8 +15,11 @@ import {
   nomeCaixinha,
   despesaAtivaNoPeriodo,
   gerarGrupoId,
+  estimarCustoCombustivel,
+  totalDespesasRegistro,
   MESES,
   CAIXINHAS_INFO,
+  TIPOS_COMBUSTIVEL,
 } from '../utils/helpers';
 
 // ─── formatarMoeda ────────────────────────────────────────────
@@ -247,6 +250,87 @@ describe('gerarGrupoId', () => {
   });
 });
 
+// ─── estimarCustoCombustivel ──────────────────────────────────
+describe('estimarCustoCombustivel', () => {
+  it('combustível líquido: custo = (km / consumo) * preço', () => {
+    const veiculo = { combustivel: 'gasolina', consumo: 10, precoUnidade: 6 };
+    const { custo, custoPorKm } = estimarCustoCombustivel(veiculo, 100);
+    expect(custo).toBeCloseTo(60); // 100/10 * 6
+    expect(custoPorKm).toBeCloseTo(0.6);
+  });
+
+  it('GNV: usa consumo em km/m³ e preço em R$/m³', () => {
+    const veiculo = { combustivel: 'gnv', consumo: 12, precoUnidade: 4.5 };
+    const { custo } = estimarCustoCombustivel(veiculo, 120);
+    expect(custo).toBeCloseTo(45); // 120/12 * 4.5
+  });
+
+  it('elétrico medido: usa km/kWh e R$/kWh', () => {
+    const veiculo = { combustivel: 'eletrico', modoEletrico: 'medido', consumo: 5, precoUnidade: 0.8 };
+    const { custo } = estimarCustoCombustivel(veiculo, 100);
+    expect(custo).toBeCloseTo(16); // 100/5 * 0.8
+  });
+
+  it('elétrico carga_fixa: custo = (km / kmPorCarga) * valorCarga', () => {
+    const veiculo = { combustivel: 'eletrico', modoEletrico: 'carga_fixa', kmPorCarga: 200, valorCarga: 30 };
+    const { custo } = estimarCustoCombustivel(veiculo, 100);
+    expect(custo).toBeCloseTo(15); // 100/200 * 30
+  });
+
+  it('elétrico grátis: custo sempre 0', () => {
+    const veiculo = { combustivel: 'eletrico', modoEletrico: 'gratis', consumo: 5, precoUnidade: 0.8 };
+    expect(estimarCustoCombustivel(veiculo, 500).custo).toBe(0);
+  });
+
+  it('km zero retorna custo e custoPorKm zero', () => {
+    const veiculo = { combustivel: 'gasolina', consumo: 10, precoUnidade: 6 };
+    expect(estimarCustoCombustivel(veiculo, 0)).toEqual({ custo: 0, custoPorKm: 0 });
+  });
+
+  it('consumo zero não quebra (divisão por zero → 0)', () => {
+    const veiculo = { combustivel: 'gasolina', consumo: 0, precoUnidade: 6 };
+    expect(estimarCustoCombustivel(veiculo, 100).custo).toBe(0);
+  });
+
+  it('veículo nulo retorna zero', () => {
+    expect(estimarCustoCombustivel(null, 100)).toEqual({ custo: 0, custoPorKm: 0 });
+  });
+});
+
+// ─── totalDespesasRegistro ────────────────────────────────────
+describe('totalDespesasRegistro', () => {
+  it('formato novo: combustível + soma dos itens', () => {
+    const r = {
+      combustivel: 50,
+      gastosGeraisItens: [{ valor: 25, descricao: 'Almoço' }, { valor: 8, descricao: 'Pedágio' }],
+    };
+    expect(totalDespesasRegistro(r)).toBe(83);
+  });
+
+  it('formato novo só com combustível (sem itens)', () => {
+    expect(totalDespesasRegistro({ combustivel: 40 })).toBe(40);
+  });
+
+  it('formato legado: usa gastosGerais único', () => {
+    expect(totalDespesasRegistro({ gastosGerais: 80 })).toBe(80);
+  });
+
+  it('prioriza formato novo quando ambos existem', () => {
+    const r = { combustivel: 30, gastosGeraisItens: [{ valor: 10 }], gastosGerais: 999 };
+    expect(totalDespesasRegistro(r)).toBe(40);
+  });
+
+  it('registro vazio ou nulo retorna 0', () => {
+    expect(totalDespesasRegistro({})).toBe(0);
+    expect(totalDespesasRegistro(null)).toBe(0);
+  });
+
+  it('ignora itens com valor inválido', () => {
+    const r = { combustivel: 0, gastosGeraisItens: [{ valor: 'abc' }, { valor: 20 }] };
+    expect(totalDespesasRegistro(r)).toBe(20);
+  });
+});
+
 // ─── Constantes ───────────────────────────────────────────────
 describe('Constantes', () => {
   it('MESES tem 12 itens', () => {
@@ -273,5 +357,13 @@ describe('Constantes', () => {
       expect(caixinha).toHaveProperty('cor');
       expect(caixinha.nome.length).toBeGreaterThan(0);
     });
+  });
+
+  it('TIPOS_COMBUSTIVEL cobre os 5 combustíveis com unidade', () => {
+    expect(Object.keys(TIPOS_COMBUSTIVEL)).toEqual(
+      expect.arrayContaining(['gasolina', 'etanol', 'diesel', 'gnv', 'eletrico'])
+    );
+    expect(TIPOS_COMBUSTIVEL.gnv.unidade).toBe('m³');
+    expect(TIPOS_COMBUSTIVEL.eletrico.unidade).toBe('kWh');
   });
 });

@@ -59,7 +59,7 @@ const METODOS_PAGAMENTO = [
 
 export default function GastosVariaveisTab() {
   const { usuario } = useAuth();
-  const { rotuloEsposa, emojiEsposa } = usePreferencias();
+  const { rotuloEsposa, emojiEsposa, pessoasVinculadas } = usePreferencias();
   const agora = new Date();
 
   const [mesAtual, setMesAtual] = useState(agora.getMonth());
@@ -87,8 +87,24 @@ export default function GastosVariaveisTab() {
   const [parcelado, setParcelado] = useState(false);
   const [totalParcelas, setTotalParcelas] = useState('');
   const [natureza, setNatureza] = useState('PESSOAL'); // EMPRESA ou PESSOAL
-  const [isEsposa, setIsEsposa] = useState(false);
+  // Pessoa vinculada do gasto (null = gasto próprio). isEsposa = !!pessoaId (compat).
+  const [pessoaId, setPessoaId] = useState(null);
+  const [pessoaNome, setPessoaNome] = useState('');
+  const [pessoaEmoji, setPessoaEmoji] = useState('');
   const [salvando, setSalvando] = useState(false);
+
+  const selecionarPessoa = (p) => {
+    setPessoaId(p ? p.id : null);
+    setPessoaNome(p ? p.nome : '');
+    setPessoaEmoji(p ? p.emoji : '');
+  };
+  // Campos de pessoa para gravar no documento (mantém isEsposa para os somatórios existentes).
+  const camposPessoa = () => ({
+    isEsposa: !!pessoaId,
+    pessoaId: pessoaId || null,
+    pessoaNome: pessoaNome || '',
+    pessoaEmoji: pessoaEmoji || '',
+  });
 
   const [editandoId, setEditandoId] = useState(null);
   const [filtroCategoria, setFiltroCategoria] = useState('Todas');
@@ -240,7 +256,9 @@ export default function GastosVariaveisTab() {
     setParcelado(false);
     setTotalParcelas('');
     setNatureza('PESSOAL');
-    setIsEsposa(false);
+    setPessoaId(null);
+    setPessoaNome('');
+    setPessoaEmoji('');
     setEditandoId(null);
   };
 
@@ -257,7 +275,21 @@ export default function GastosVariaveisTab() {
     setParcelado(!!gasto.parcelado);
     setTotalParcelas(gasto.totalParcelas ? String(gasto.totalParcelas) : '');
     setNatureza(gasto.natureza || 'PESSOAL');
-    setIsEsposa(gasto.isEsposa || false);
+    // Pessoa: usa pessoaId salvo; se for legado (só isEsposa), cai na 1ª pessoa cadastrada.
+    if (gasto.pessoaId) {
+      setPessoaId(gasto.pessoaId);
+      setPessoaNome(gasto.pessoaNome || rotuloEsposa);
+      setPessoaEmoji(gasto.pessoaEmoji || emojiEsposa);
+    } else if (gasto.isEsposa) {
+      const p = pessoasVinculadas[0];
+      setPessoaId(p?.id || 'principal');
+      setPessoaNome(p?.nome || rotuloEsposa);
+      setPessoaEmoji(p?.emoji || emojiEsposa);
+    } else {
+      setPessoaId(null);
+      setPessoaNome('');
+      setPessoaEmoji('');
+    }
     setEditandoId(gasto.id);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -309,7 +341,7 @@ export default function GastosVariaveisTab() {
           mes: mesData - 1,
           ano: anoData,
           natureza,
-          isEsposa
+          ...camposPessoa()
         };
         const docRef = doc(db, 'usuarios', usuario.uid, 'despesas_variaveis', editandoId);
         await updateDoc(docRef, dadosGasto);
@@ -368,7 +400,7 @@ export default function GastosVariaveisTab() {
             totalParcelas: nParcelas,
             grupoParcelamento: grupoId,
             natureza,
-            isEsposa,
+            ...camposPessoa(),
             pago: ehPago
           });
         }
@@ -394,7 +426,7 @@ export default function GastosVariaveisTab() {
           ano: anoData,
           parcelado: false,
           natureza,
-          isEsposa,
+          ...camposPessoa(),
           pago: ehPago
         };
         const colRef = collection(db, 'usuarios', usuario.uid, 'despesas_variaveis');
@@ -622,8 +654,8 @@ export default function GastosVariaveisTab() {
             <SeletorNatureza
               natureza={natureza}
               setNatureza={setNatureza}
-              isEsposa={isEsposa}
-              setIsEsposa={setIsEsposa}
+              pessoaId={pessoaId}
+              onSelectPessoa={selecionarPessoa}
             />
           </div>
 
@@ -813,7 +845,8 @@ export default function GastosVariaveisTab() {
             {gastosFiltrados.map(gasto => {
               let tagNaturezaCor = gasto.natureza === 'EMPRESA' ? '#a29bfe' : '#74b9ff';
               let tagNaturezaIcone = gasto.natureza === 'EMPRESA' ? '🏢' : '👤';
-              if (gasto.isEsposa) { tagNaturezaCor = '#fd79a8'; tagNaturezaIcone = emojiEsposa; }
+              if (gasto.isEsposa) { tagNaturezaCor = '#fd79a8'; tagNaturezaIcone = gasto.pessoaEmoji || emojiEsposa; }
+              const tagPessoaNome = gasto.pessoaNome || rotuloEsposa;
 
               return (
                 <div key={gasto.id} className={`flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 p-4 rounded-2xl border transition-all duration-300 ${gasto.pago ? 'bg-hawk-green/5 border-hawk-green/20' : 'bg-hawk-card border-glass-border hover:border-hawk-purple/30 shadow-card'}`}>
@@ -833,7 +866,7 @@ export default function GastosVariaveisTab() {
                         {mapaLabels[gasto.categoria] || gasto.categoria}
                       </span>
                       <span className="px-2 py-0.5 rounded text-[10px] font-bold text-[#111] flex items-center gap-1" style={{ backgroundColor: tagNaturezaCor }}>
-                        <span>{tagNaturezaIcone}</span> {gasto.natureza === 'EMPRESA' ? 'Empresa' : (gasto.isEsposa ? rotuloEsposa : 'Pessoal')}
+                        <span>{tagNaturezaIcone}</span> {gasto.natureza === 'EMPRESA' ? 'Empresa' : (gasto.isEsposa ? tagPessoaNome : 'Pessoal')}
                       </span>
                     </div>
                   </div>

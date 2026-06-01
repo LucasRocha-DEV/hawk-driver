@@ -11,7 +11,8 @@ import {
   addDoc,
   increment
 } from 'firebase/firestore';
-import { formatarDataChave, somarHoras, pad, nomeCaixinha } from '../utils/helpers';
+import { formatarDataChave, somarHoras, pad, nomeCaixinha, estimarCustoCombustivel } from '../utils/helpers';
+import { usePreferencias } from '../contexts/PreferenciasContext';
 import ConsistenciaPanel from './ConsistenciaPanel';
 
 // ── Subcomponentes Tailwind ──
@@ -58,6 +59,7 @@ const CATEGORIAS_DISPONIVEIS = ['UberX', 'Comfort', 'Black', '99 (App)', 'Flash'
 
 export default function UberTab() {
   const { usuario } = useAuth();
+  const { veiculos, veiculoAtivo, veiculoAtivoId } = usePreferencias();
 
   const [dataSelecionada, setDataSelecionada] = useState(new Date());
   const [mesAtivo, setMesAtivo] = useState(new Date());
@@ -69,7 +71,10 @@ export default function UberTab() {
   // Form state
   const [km, setKm] = useState('');
   const [totalBruto, setTotalBruto] = useState('');
-  const [gastosGerais, setGastosGerais] = useState('');
+  const [combustivel, setCombustivel] = useState('');
+  const [combustivelEditado, setCombustivelEditado] = useState(false);
+  const [gastosGeraisItens, setGastosGeraisItens] = useState([]);
+  const [veiculoIdDia, setVeiculoIdDia] = useState('');
   const [viagens, setViagens] = useState('');
   const [horarioRodado, setHorarioRodado] = useState('');
   const [horaInicio, setHoraInicio] = useState('');
@@ -93,8 +98,7 @@ export default function UberTab() {
   const [pctEmpresa, setPctEmpresa] = useState(30);
   const [pctLivre, setPctLivre] = useState(10);
   const [pctContas, setPctContas] = useState(20);
-  const [mostrarConfig, setMostrarConfig] = useState(false);
-  const [salvandoConfig, setSalvandoConfig] = useState(false);
+  // (As porcentagens são editadas em ⚙️ Configurações; aqui só carregamos via listener.)
 
   // Caixinhas state
   const [manutencaoValor, setManutencaoValor] = useState('');
@@ -235,6 +239,24 @@ export default function UberTab() {
     );
   };
 
+  // Combustível: edição manual desliga o auto-preenchimento da estimativa
+  const handleCombustivelChange = (valor) => {
+    setCombustivel(valor);
+    setCombustivelEditado(true);
+  };
+  const usarEstimativaCombustivel = () => {
+    setCombustivel(combustivelEstimado ? combustivelEstimado.toFixed(2) : '0');
+    setCombustivelEditado(false);
+  };
+
+  // Gastos Gerais do dia (lista de itens)
+  const adicionarItemGasto = () =>
+    setGastosGeraisItens(prev => [...prev, { valor: '', descricao: '' }]);
+  const atualizarItemGasto = (idx, campo, valor) =>
+    setGastosGeraisItens(prev => prev.map((it, i) => (i === idx ? { ...it, [campo]: valor } : it)));
+  const removerItemGasto = (idx) =>
+    setGastosGeraisItens(prev => prev.filter((_, i) => i !== idx));
+
   // ─── Motivational Phrases Rotation ───
   useEffect(() => {
     const intervalo = setInterval(() => {
@@ -298,17 +320,33 @@ export default function UberTab() {
     if (registroDoDia) {
       setKm(registroDoDia.km != null ? String(registroDoDia.km) : '');
       setTotalBruto(registroDoDia.totalBruto != null ? String(registroDoDia.totalBruto) : '');
-      setGastosGerais(registroDoDia.gastosGerais != null ? String(registroDoDia.gastosGerais) : '');
       setViagens(registroDoDia.viagens != null ? String(registroDoDia.viagens) : '');
       setHorarioRodado(registroDoDia.horarioRodado || '');
       setHoraInicio(registroDoDia.horaInicio || '');
       setHoraFim(registroDoDia.horaFim || '');
       setCategoriasSelecionadas(registroDoDia.categorias || []);
       setManutencaoValor(registroDoDia.manutencaoValor != null ? String(registroDoDia.manutencaoValor) : '');
+      setVeiculoIdDia(registroDoDia.veiculoId || veiculoAtivoId || '');
+
+      // Combustível + Gastos Gerais (com fallback para o formato antigo)
+      const temFormatoNovo = registroDoDia.combustivel != null || registroDoDia.gastosGeraisItens != null;
+      if (temFormatoNovo) {
+        setCombustivel(registroDoDia.combustivel != null ? String(registroDoDia.combustivel) : '');
+        setGastosGeraisItens(registroDoDia.gastosGeraisItens || []);
+      } else {
+        // Registro legado: joga o gasto único como um item de Gastos Gerais
+        setCombustivel('');
+        const legado = Number(registroDoDia.gastosGerais) || 0;
+        setGastosGeraisItens(legado > 0 ? [{ valor: legado, descricao: 'Gasto geral' }] : []);
+      }
+      setCombustivelEditado(true); // não sobrescrever um valor já salvo
     } else {
       setKm('');
       setTotalBruto('');
-      setGastosGerais('');
+      setCombustivel('');
+      setGastosGeraisItens([]);
+      setCombustivelEditado(false);
+      setVeiculoIdDia(veiculoAtivoId || '');
       setViagens('');
       setHorarioRodado('');
       setHoraInicio('');
@@ -316,7 +354,7 @@ export default function UberTab() {
       setCategoriasSelecionadas([]);
       setManutencaoValor('');
     }
-  }, [dataChave, registroDoDia]);
+  }, [dataChave, registroDoDia, veiculoAtivoId]);
 
   // ─── Auto-calculate total hours from start/end times ───
   useEffect(() => {
@@ -338,9 +376,30 @@ export default function UberTab() {
     }
   }, [horaInicio, horaFim]);
 
+  // ─── Veículo do dia + estimativa de combustível ───
+  const kmNum = parseFloat(km) || 0;
+  const veiculoDoDia = useMemo(
+    () => veiculos.find(v => v.id === veiculoIdDia) || veiculoAtivo || null,
+    [veiculos, veiculoIdDia, veiculoAtivo]
+  );
+  const { custo: combustivelEstimado, custoPorKm } = useMemo(
+    () => estimarCustoCombustivel(veiculoDoDia, kmNum),
+    [veiculoDoDia, kmNum]
+  );
+
+  // Pré-preenche o combustível com a estimativa enquanto o usuário não editar manualmente.
+  useEffect(() => {
+    if (combustivelEditado) return;
+    if (veiculoDoDia && kmNum > 0) {
+      setCombustivel(combustivelEstimado ? combustivelEstimado.toFixed(2) : '0');
+    }
+  }, [combustivelEstimado, veiculoDoDia, kmNum, combustivelEditado]);
+
   // ─── Derived values ───
   const brutoNum = parseFloat(totalBruto) || 0;
-  const gastosNum = parseFloat(gastosGerais) || 0;
+  const combustivelNum = parseFloat(combustivel) || 0;
+  const somaGastosGerais = gastosGeraisItens.reduce((s, i) => s + (Number(i.valor) || 0), 0);
+  const gastosNum = combustivelNum + somaGastosGerais;
   const liquidoNum = brutoNum - gastosNum;
   const pctEmpresaTotal = pctEmpresa; // Liquid
   const pctManutencaoTotal = pctManutencao; // Bruto
@@ -351,7 +410,6 @@ export default function UberTab() {
 
   const motoristaNum = valorCaixinhasMotorista;
   const empresaNum = valorCaixinhasEmpresa;
-  const kmNum = parseFloat(km) || 0;
   const viagensNum = parseInt(viagens, 10) || 0;
 
   // ─── Registros Array ───
@@ -456,11 +514,17 @@ export default function UberTab() {
 
     try {
       const brutoNum = parseFloat(totalBruto) || 0;
-      const gastosNum = parseFloat(gastosGerais) || 0;
+      const combustivelNum = parseFloat(combustivel) || 0;
+      // Normaliza itens de gastos gerais (descarta linhas em branco)
+      const itensLimpos = gastosGeraisItens
+        .map(i => ({ valor: Number(i.valor) || 0, descricao: (i.descricao || '').trim() }))
+        .filter(i => i.valor > 0 || i.descricao);
+      const somaItens = itensLimpos.reduce((s, i) => s + i.valor, 0);
+      const gastosNum = combustivelNum + somaItens;
       const totalLiquido = brutoNum - gastosNum;
-      
+
       const docRef = doc(db, 'usuarios', usuario.uid, 'registros', dataChave);
-      
+
       const snap = await getDoc(docRef);
       let diferencaBruto = brutoNum;
       if (snap.exists()) {
@@ -470,6 +534,13 @@ export default function UberTab() {
       const dados = {
         km: parseFloat(km) || 0,
         totalBruto: brutoNum,
+        // Campos novos do custo do dia
+        combustivel: combustivelNum,
+        custoPorKm: custoPorKm || 0,
+        gastosGeraisItens: itensLimpos,
+        veiculoId: veiculoDoDia?.id || '',
+        veiculoNome: veiculoDoDia?.nome || '',
+        // Mantém gastosGerais como TOTAL para compatibilidade com leitores antigos
         gastosGerais: gastosNum,
         totalLiquido,
         viagens: parseInt(viagens, 10) || 0,
@@ -503,36 +574,7 @@ export default function UberTab() {
     setSalvando(false);
   };
 
-  // ─── Save caixinhas percentage configuration ───
-  const salvarConfiguracao = async (e) => {
-    e.preventDefault();
-    if (!usuario) return;
-    
-    const sumBruto = parseFloat(pctEmergencia||0) + parseFloat(pctManutencao||0);
-    const sumLiquido = parseFloat(pctEmpresa||0) + parseFloat(pctLivre||0) + parseFloat(pctContas||0);
-    
-    if (sumBruto > 100 || sumLiquido > 100) {
-      alert("As porcentagens não podem ultrapassar 100% em suas respectivas bases (Bruto e Líquido).");
-      return;
-    }
-
-    setSalvandoConfig(true);
-    try {
-      const configRef = doc(db, 'usuarios', usuario.uid, 'configuracoes', 'caixinhas');
-      await setDoc(configRef, {
-        pctEmergencia: parseFloat(pctEmergencia) || 0,
-        pctManutencao: parseFloat(pctManutencao) || 0,
-        pctEmpresa: parseFloat(pctEmpresa) || 0,
-        pctLivre: parseFloat(pctLivre) || 0,
-        pctContas: parseFloat(pctContas) || 0,
-        atualizadoEm: serverTimestamp()
-      });
-      setMostrarConfig(false);
-    } catch (err) {
-      console.error('Erro ao salvar configurações de caixinhas:', err);
-    }
-    setSalvandoConfig(false);
-  };
+  // (Edição das porcentagens das caixinhas migrada para ⚙️ Configurações → CaixinhasConfig)
 
   // ─── Processar Repasse Semanal ───
   const processarRepasse = async () => {
@@ -713,7 +755,19 @@ export default function UberTab() {
         tileClassName={tileClassName}
         km={km} setKm={setKm}
         totalBruto={totalBruto} setTotalBruto={setTotalBruto}
-        gastosGerais={gastosGerais} setGastosGerais={setGastosGerais}
+        combustivel={combustivel}
+        onCombustivelChange={handleCombustivelChange}
+        combustivelEstimado={combustivelEstimado}
+        custoPorKm={custoPorKm}
+        onUsarEstimativa={usarEstimativaCombustivel}
+        gastosGeraisItens={gastosGeraisItens}
+        onAdicionarItemGasto={adicionarItemGasto}
+        onAtualizarItemGasto={atualizarItemGasto}
+        onRemoverItemGasto={removerItemGasto}
+        veiculos={veiculos}
+        veiculoDoDia={veiculoDoDia}
+        veiculoIdDia={veiculoIdDia}
+        setVeiculoIdDia={setVeiculoIdDia}
         viagens={viagens} setViagens={setViagens}
         horaInicio={horaInicio} setHoraInicio={setHoraInicio}
         horaFim={horaFim} setHoraFim={setHoraFim}
@@ -744,14 +798,12 @@ export default function UberTab() {
         registroDoDia={registroDoDia}
         brutoNum={brutoNum}
         liquidoNum={liquidoNum}
-        pctEmergencia={pctEmergencia} setPctEmergencia={setPctEmergencia}
-        pctManutencao={pctManutencao} setPctManutencao={setPctManutencao}
-        pctEmpresa={pctEmpresa}       setPctEmpresa={setPctEmpresa}
-        pctLivre={pctLivre}           setPctLivre={setPctLivre}
-        pctContas={pctContas}         setPctContas={setPctContas}
+        pctEmergencia={pctEmergencia}
+        pctManutencao={pctManutencao}
+        pctEmpresa={pctEmpresa}
+        pctLivre={pctLivre}
+        pctContas={pctContas}
         saldoRetido={saldoRetido}
-        salvandoConfig={salvandoConfig}
-        onSalvarConfig={salvarConfiguracao}
         onAbrirRepasse={() => setMostrarRepasseModal(true)}
       />
 

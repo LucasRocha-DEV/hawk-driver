@@ -7,30 +7,35 @@ export default {
   theme: {
     extend: {
       colors: {
+        // ── Design tokens (CSS variables) ──
+        // Os valores ficam em src/index.css como canais RGB ("R G B"), o que
+        // permite que o Tailwind continue gerando as variantes de opacidade
+        // (ex.: bg-hawk-green/10) via <alpha-value>. Trocar de tema é só trocar
+        // o data-theme na raiz do documento — nenhum componente precisa mudar.
         // Backgrounds
-        'hawk-bg':        '#0a0a0f',
-        'hawk-bg2':       '#12121a',
-        'hawk-card':      '#1a1a2e',
-        'hawk-input':     '#16162a',
-        'hawk-hover':     '#22223a',
-        // Glass
-        'glass':          'rgba(255,255,255,0.03)',
-        'glass-border':   'rgba(255,255,255,0.06)',
-        'glass-hover':    'rgba(255,255,255,0.06)',
+        'hawk-bg':        'rgb(var(--hawk-bg) / <alpha-value>)',
+        'hawk-bg2':       'rgb(var(--hawk-bg2) / <alpha-value>)',
+        'hawk-card':      'rgb(var(--hawk-card) / <alpha-value>)',
+        'hawk-input':     'rgb(var(--hawk-input) / <alpha-value>)',
+        'hawk-hover':     'rgb(var(--hawk-hover) / <alpha-value>)',
+        // Glass (rgba completo, sem variante de opacidade)
+        'glass':          'var(--glass)',
+        'glass-border':   'var(--glass-border)',
+        'glass-hover':    'var(--glass-hover)',
         // Accent
-        'hawk-green':     '#00d4aa',
-        'hawk-purple':    '#6c5ce7',
-        'hawk-red':       '#ff6b6b',
-        'hawk-yellow':    '#ffd93d',
-        'hawk-blue':      '#0984e3',
-        'hawk-pink':      '#fd79a8',
-        'hawk-orange':    '#e17055',
-        'hawk-violet':    '#a29bfe',
-        'hawk-teal':      '#00b894',
+        'hawk-green':     'rgb(var(--hawk-green) / <alpha-value>)',
+        'hawk-purple':    'rgb(var(--hawk-purple) / <alpha-value>)',
+        'hawk-red':       'rgb(var(--hawk-red) / <alpha-value>)',
+        'hawk-yellow':    'rgb(var(--hawk-yellow) / <alpha-value>)',
+        'hawk-blue':      'rgb(var(--hawk-blue) / <alpha-value>)',
+        'hawk-pink':      'rgb(var(--hawk-pink) / <alpha-value>)',
+        'hawk-orange':    'rgb(var(--hawk-orange) / <alpha-value>)',
+        'hawk-violet':    'rgb(var(--hawk-violet) / <alpha-value>)',
+        'hawk-teal':      'rgb(var(--hawk-teal) / <alpha-value>)',
         // Text
-        'hawk-text':      '#f0f0f5',
-        'hawk-muted':     '#8888a8',
-        'hawk-dim':       '#55556a',
+        'hawk-text':      'rgb(var(--hawk-text) / <alpha-value>)',
+        'hawk-muted':     'rgb(var(--hawk-muted) / <alpha-value>)',
+        'hawk-dim':       'rgb(var(--hawk-dim) / <alpha-value>)',
       },
       fontFamily: {
         sans:    ['Inter', 'system-ui', 'sans-serif'],

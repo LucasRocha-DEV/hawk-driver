@@ -1,13 +1,18 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { useAuth } from './contexts/AuthContext';
-import UberTab from './components/UberTab';
-import AnaliseTab from './components/AnaliseTab';
-import ContasTab from './components/ContasTab';
-import DespesasFixasTab from './components/DespesasFixasTab';
-import GastosVariaveisTab from './components/GastosVariaveisTab';
-import ObservacoesTab from './components/ObservacoesTab';
-import PatrimonioTab from './components/PatrimonioTab';
-import CartoesTab from './components/CartoesTab';
+import { usePreferencias } from './contexts/PreferenciasContext';
+import ConfiguracoesModal from './components/configuracoes/ConfiguracoesModal';
+import OnboardingModal from './components/configuracoes/OnboardingModal';
+
+// Abas carregadas sob demanda (code-splitting) — reduz o bundle inicial.
+const UberTab           = lazy(() => import('./components/UberTab'));
+const AnaliseTab        = lazy(() => import('./components/AnaliseTab'));
+const ContasTab         = lazy(() => import('./components/ContasTab'));
+const DespesasFixasTab  = lazy(() => import('./components/DespesasFixasTab'));
+const GastosVariaveisTab = lazy(() => import('./components/GastosVariaveisTab'));
+const ObservacoesTab    = lazy(() => import('./components/ObservacoesTab'));
+const PatrimonioTab     = lazy(() => import('./components/PatrimonioTab'));
+const CartoesTab        = lazy(() => import('./components/CartoesTab'));
 
 const TABS = [
   { id: 'uber',      label: 'Uber / Ganhos',    icon: '🚗' },
@@ -153,7 +158,20 @@ function LoadingScreen() {
 // ── Main App ─────────────────────────────────────────────────────
 export default function App() {
   const { usuario, carregando, loginComGoogle, logout, erro, setErro } = useAuth();
+  const { veiculos, veiculosCarregados } = usePreferencias();
   const [abaAtiva, setAbaAtiva] = useState('uber');
+  const [mostrarConfig, setMostrarConfig] = useState(false);
+  const [onboardingDispensado, setOnboardingDispensado] = useState(
+    () => typeof window !== 'undefined' && localStorage.getItem('hawk_driver_onboarding') === 'feito'
+  );
+
+  const mostrarOnboarding =
+    !!usuario && veiculosCarregados && veiculos.length === 0 && !onboardingDispensado;
+
+  const dispensarOnboarding = () => {
+    localStorage.setItem('hawk_driver_onboarding', 'feito');
+    setOnboardingDispensado(true);
+  };
 
   if (carregando) return <LoadingScreen />;
   if (!usuario)   return <LoginScreen onLogin={loginComGoogle} erro={erro} limparErro={() => setErro(null)} />;
@@ -182,6 +200,15 @@ export default function App() {
           <h1 className="text-lg font-bold text-hawk-text tracking-tight hidden sm:block">Hawk Driver</h1>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            id="btn-config"
+            onClick={() => setMostrarConfig(true)}
+            title="Configurações"
+            className="p-2 rounded-xl text-hawk-muted hover:text-hawk-text hover:bg-glass-hover
+                       transition-all duration-200 text-base leading-none"
+          >
+            ⚙️
+          </button>
           {usuario.photoURL && (
             <img
               src={usuario.photoURL}
@@ -233,8 +260,23 @@ export default function App() {
 
       {/* ── Tab Content ── */}
       <main className="flex-1 overflow-y-auto">
-        {renderTab()}
+        <Suspense
+          fallback={
+            <div className="flex flex-col items-center justify-center py-20 gap-3">
+              <div className="w-8 h-8 rounded-full border-2 border-hawk-card border-t-hawk-green animate-spin" />
+              <p className="text-hawk-muted text-sm">Carregando...</p>
+            </div>
+          }
+        >
+          {renderTab()}
+        </Suspense>
       </main>
+
+      {/* ── Modal de Configurações ── */}
+      {mostrarConfig && <ConfiguracoesModal onClose={() => setMostrarConfig(false)} />}
+
+      {/* ── Onboarding de primeiro acesso ── */}
+      {mostrarOnboarding && <OnboardingModal onClose={dispensarOnboarding} />}
     </div>
   );
 }

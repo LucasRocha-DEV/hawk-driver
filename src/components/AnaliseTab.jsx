@@ -5,7 +5,8 @@ import { collection, onSnapshot, doc, getDoc, setDoc, getDocs, deleteDoc, query,
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import ReactMarkdown from 'react-markdown';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { formatarMoeda, parsarHoras } from '../utils/helpers';
+import { formatarMoeda, parsarHoras, TIPOS_COMBUSTIVEL } from '../utils/helpers';
+import { usePreferencias } from '../contexts/PreferenciasContext';
 import ChatChart from './chat/ChatChart';
 import HistoricoConversas from './chat/HistoricoConversas';
 
@@ -61,18 +62,18 @@ function classificarTurno(horaInicio, horaFim) {
 
 export default function AnaliseTab() {
   const { usuario } = useAuth();
-  
+  const { veiculoAtivo } = usePreferencias();
+
   // Dados do app
   const [registrosMap, setRegistrosMap] = useState({});
   const [despesasFixas, setDespesasFixas] = useState([]);
   const [despesasVariaveis, setDespesasVariaveis] = useState([]);
-  
+
   // UI States
   const [filtroMes, setFiltroMes] = useState('todos');
-  
+
   // Chatbot Config & State
   const [apiKey, setApiKey] = useState('');
-  const [tipoVeiculo, setTipoVeiculo] = useState('gasolina');
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
@@ -99,7 +100,6 @@ export default function AnaliseTab() {
       if (docSnap.exists()) {
         const data = docSnap.data();
         if (data.apiKey) setApiKey(data.apiKey);
-        if (data.tipoVeiculo) setTipoVeiculo(data.tipoVeiculo);
       }
     };
     loadConfig();
@@ -191,19 +191,24 @@ export default function AnaliseTab() {
     };
   }, [usuario]);
 
-  const saveConfig = async (e) => {
-    e.preventDefault();
-    if (!usuario) return;
-    try {
-      await setDoc(doc(db, 'usuarios', usuario.uid, 'configuracoes', 'ia'), {
-        apiKey,
-        tipoVeiculo
-      }, { merge: true });
-      setIsConfigOpen(false);
-    } catch (err) {
-      alert('Erro ao salvar configurações');
+  // Texto de contexto do veículo ativo, alimentado pelo cadastro em ⚙️ Configurações.
+  const contextoVeiculo = useMemo(() => {
+    if (!veiculoAtivo) {
+      return 'VEÍCULO DO USUÁRIO: não cadastrado (sugira cadastrar em Configurações para estimativas de combustível).';
     }
-  };
+    const info = TIPOS_COMBUSTIVEL[veiculoAtivo.combustivel] || { label: veiculoAtivo.combustivel, unidade: '' };
+    const partes = [
+      `VEÍCULO DO USUÁRIO: ${veiculoAtivo.nome} (${veiculoAtivo.carroceria === 'moto' ? 'moto' : 'carro'}), combustível ${info.label}.`,
+    ];
+    if (veiculoAtivo.combustivel === 'eletrico' && veiculoAtivo.modoEletrico === 'gratis') {
+      partes.push('O usuário NÃO paga energia (custo de "combustível" = R$ 0). Não alerte sobre gasto baixo com energia.');
+    } else if (veiculoAtivo.consumo > 0) {
+      partes.push(`Rendimento: ${veiculoAtivo.consumo} km por ${info.unidade}, a R$ ${veiculoAtivo.precoUnidade}/${info.unidade}.`);
+    } else if (veiculoAtivo.modoEletrico === 'carga_fixa') {
+      partes.push(`Carga fixa: R$ ${veiculoAtivo.valorCarga} a cada ${veiculoAtivo.kmPorCarga} km.`);
+    }
+    return partes.join(' ');
+  }, [veiculoAtivo]);
 
   const mesesDisponiveis = useMemo(() => {
     const chaves = Object.keys(registrosMap);
@@ -426,11 +431,11 @@ Seus melhores dias por ganho/hora:
 {"type":"bar","title":"Ganho por hora","unit":"R$","data":[{"label":"Sex","value":32.4},{"label":"Sáb","value":29.1},{"label":"Dom","value":24.8}]}
 \`\`\`
 
-TIPO DE VEÍCULO DO USUÁRIO: ${tipoVeiculo}
-${tipoVeiculo === 'eletrico' ? '(Lembre-se que veículos elétricos têm gastos com "combustível" quase nulos. Não alerte sobre gastos baixos com isso).' : ''}
+${contextoVeiculo}
 
 === DADOS DO USUÁRIO (JSON) ===
-REGISTROS UBER/99 (Ganhos e Horários por dia):
+REGISTROS UBER/99 (Ganhos, Horários, Combustível e Gastos Gerais por dia):
+Cada registro pode conter "combustivel" (R$), "custoPorKm" e "gastosGeraisItens" (lista de { valor, descricao }). Use as DESCRIÇÕES dos gastos gerais para apontar onde o dinheiro está indo no dia a dia.
 ${JSON.stringify(registrosAtuais)}
 
 DESPESAS FIXAS (Custos mensais):
@@ -675,25 +680,11 @@ ${JSON.stringify(despesasVariaveisAtuais)}
           {/* Configurações Dropdown */}
           {isConfigOpen && (
             <div className="p-4 border-b border-glass-border bg-hawk-card/90">
-              <form onSubmit={saveConfig} className="space-y-3">
-                <div>
-                  <label className="text-xs font-semibold text-hawk-muted block mb-1">API Key Gemini:</label>
-                  <input type="password" required value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="Sua chave..." className="w-full bg-hawk-input border border-glass-border rounded-lg px-3 py-2 text-sm text-hawk-text focus:outline-none focus:border-hawk-purple" />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-hawk-muted block mb-1">Tipo de Veículo:</label>
-                  <select value={tipoVeiculo} onChange={e => setTipoVeiculo(e.target.value)} className="w-full bg-hawk-input border border-glass-border rounded-lg px-3 py-2 text-sm text-hawk-text focus:outline-none focus:border-hawk-purple cursor-pointer">
-                    <option value="gasolina">Gasolina</option>
-                    <option value="etanol">Etanol</option>
-                    <option value="gnv">GNV (Gás Natural)</option>
-                    <option value="eletrico">Elétrico ⚡</option>
-                    <option value="hibrido">Híbrido</option>
-                    <option value="diesel">Diesel</option>
-                  </select>
-                </div>
-                <button type="submit" className="w-full bg-hawk-purple hover:bg-hawk-purple/90 text-white font-semibold py-2 rounded-lg text-sm transition-all active:scale-95">Salvar Configurações</button>
-              </form>
-              
+              <p className="text-xs text-hawk-muted leading-relaxed">
+                🔑 A <strong className="text-hawk-text">chave da API</strong> e o <strong className="text-hawk-text">veículo</strong> agora ficam em{' '}
+                <strong className="text-hawk-text">⚙️ Configurações</strong> (engrenagem no topo da tela).
+              </p>
+
               <div className="mt-4 pt-4 border-t border-glass-border">
                 <p className="text-xs text-hawk-muted mb-2 font-medium">Limpeza de Dados Antigos:</p>
                 <button 
@@ -755,9 +746,9 @@ ${JSON.stringify(despesasVariaveisAtuais)}
           {/* Chat Input */}
           <div className="p-4 border-t border-glass-border bg-hawk-bg">
             {!apiKey ? (
-              <button onClick={() => setIsConfigOpen(true)} className="w-full text-center text-sm text-hawk-purple underline">
-                Configure sua API Key para começar a usar a IA
-              </button>
+              <p className="w-full text-center text-sm text-hawk-muted">
+                Configure sua API Key em <strong className="text-hawk-text">⚙️ Configurações → Inteligência Artificial</strong> para usar a IA.
+              </p>
             ) : (
               <>
                 {!isChatLoading && (

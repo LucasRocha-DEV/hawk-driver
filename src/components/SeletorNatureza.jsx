@@ -1,45 +1,17 @@
-import { useState } from 'react';
 import { usePreferencias } from '../contexts/PreferenciasContext';
 
 /**
- * Componente reutilizável de seletor de natureza (Empresa/Pessoal) + toggle da
- * pessoa vinculada (originalmente "Esposa", agora rótulo configurável).
+ * Seletor de natureza (Empresa/Pessoal) + escolha de qual pessoa vinculada é o gasto.
  * Usado em: DespesasFixasTab, GastosVariaveisTab
  *
  * Props:
- *   natureza (string)     - 'EMPRESA' ou 'PESSOAL'
- *   setNatureza (fn)      - Setter de natureza
- *   isEsposa (boolean)    - Se o gasto é da pessoa vinculada
- *   setIsEsposa (fn)      - Setter de isEsposa
+ *   natureza (string)         - 'EMPRESA' ou 'PESSOAL'
+ *   setNatureza (fn)          - Setter de natureza
+ *   pessoaId (string|null)    - Id da pessoa vinculada selecionada (null = gasto próprio)
+ *   onSelectPessoa (fn)       - (pessoa|null) => void — pessoa = {id, nome, emoji}
  */
-const EMOJIS_SUGERIDOS = ['👩', '👨', '👧', '👦', '👵', '👴', '🧑', '💑', '🤝'];
-
-export default function SeletorNatureza({ natureza, setNatureza, isEsposa, setIsEsposa }) {
-  const { rotuloEsposa, emojiEsposa, salvarRotuloPessoa } = usePreferencias();
-
-  const [editando, setEditando] = useState(false);
-  const [nomeTmp, setNomeTmp] = useState(rotuloEsposa);
-  const [emojiTmp, setEmojiTmp] = useState(emojiEsposa);
-  const [salvandoRotulo, setSalvandoRotulo] = useState(false);
-
-  const abrirEditor = (e) => {
-    e.stopPropagation();
-    setNomeTmp(rotuloEsposa);
-    setEmojiTmp(emojiEsposa);
-    setEditando(true);
-  };
-
-  const salvar = async (e) => {
-    e.stopPropagation();
-    setSalvandoRotulo(true);
-    try {
-      await salvarRotuloPessoa(nomeTmp, emojiTmp);
-      setEditando(false);
-    } catch {
-      alert('Não foi possível salvar o rótulo. Tente novamente.');
-    }
-    setSalvandoRotulo(false);
-  };
+export default function SeletorNatureza({ natureza, setNatureza, pessoaId, onSelectPessoa }) {
+  const { pessoasVinculadas } = usePreferencias();
 
   return (
     <div className="space-y-3">
@@ -76,97 +48,46 @@ export default function SeletorNatureza({ natureza, setNatureza, isEsposa, setIs
         </button>
       </div>
 
-      {/* Toggle da pessoa vinculada (só em PESSOAL) */}
+      {/* Escolha de quem é o gasto (só em PESSOAL) */}
       {natureza === 'PESSOAL' && (
         <div className="animate-fade-in space-y-2">
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={() => setIsEsposa(!isEsposa)}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setIsEsposa(!isEsposa); } }}
-            className={`flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all duration-200 ${
-              isEsposa
-                ? 'border-hawk-pink bg-hawk-pink/10'
-                : 'border-glass-border bg-hawk-input hover:border-white/20'
-            }`}
-          >
-            <span className="text-xl leading-none select-none">{isEsposa ? '✅' : '⬜'}</span>
-            <div className="flex-1 min-w-0">
-              <span className={`text-sm font-bold flex items-center gap-1.5 ${isEsposa ? 'text-hawk-pink' : 'text-hawk-text'}`}>
-                <span>{emojiEsposa}</span> Gasto da {rotuloEsposa}?
-              </span>
-              <span className="block text-[11px] text-hawk-muted mt-0.5">
-                Identifica separadamente quanto você gasta com {rotuloEsposa.toLowerCase()}.
-              </span>
-            </div>
+          <p className="text-xs font-semibold text-hawk-muted">De quem é este gasto?</p>
+          <div className="flex flex-wrap gap-2">
+            {/* Próprio */}
             <button
               type="button"
-              onClick={abrirEditor}
-              title="Renomear rótulo"
-              className="flex-shrink-0 w-8 h-8 rounded-lg border border-white/10 bg-white/5 text-hawk-muted hover:text-hawk-text hover:bg-white/10 transition-colors flex items-center justify-center"
+              onClick={() => onSelectPessoa(null)}
+              className={`px-4 py-2 rounded-xl text-sm font-bold border transition-all duration-200 ${
+                !pessoaId
+                  ? 'border-hawk-blue bg-hawk-blue/10 text-hawk-blue'
+                  : 'border-glass-border bg-hawk-input text-hawk-muted hover:text-hawk-text'
+              }`}
             >
-              ✎
+              🙋 Meu (próprio)
             </button>
-          </div>
 
-          {/* Editor inline do rótulo */}
-          {editando && (
-            <div className="animate-fade-in p-3.5 rounded-xl border border-hawk-pink/30 bg-hawk-pink/5 space-y-3">
-              <p className="text-[11px] font-bold text-hawk-pink uppercase tracking-widest">
-                Personalizar rótulo
-              </p>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={emojiTmp}
-                  onChange={(e) => setEmojiTmp(e.target.value)}
-                  maxLength={2}
-                  className="w-14 text-center bg-hawk-input border border-glass-border rounded-xl px-2 py-2.5 text-hawk-text text-lg focus:outline-none focus:ring-1 focus:border-hawk-pink/50 transition-colors"
-                  aria-label="Emoji"
-                />
-                <input
-                  type="text"
-                  value={nomeTmp}
-                  onChange={(e) => setNomeTmp(e.target.value)}
-                  maxLength={24}
-                  placeholder="Ex: Esposa, Filho, Mãe..."
-                  className="flex-1 bg-hawk-input border border-glass-border rounded-xl px-4 py-2.5 text-hawk-text text-sm focus:outline-none focus:ring-1 focus:border-hawk-pink/50 transition-colors"
-                  aria-label="Nome do rótulo"
-                />
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {EMOJIS_SUGERIDOS.map((em) => (
-                  <button
-                    key={em}
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); setEmojiTmp(em); }}
-                    className={`w-8 h-8 rounded-lg text-base flex items-center justify-center transition-all ${
-                      emojiTmp === em ? 'bg-hawk-pink/20 ring-1 ring-hawk-pink' : 'bg-white/5 hover:bg-white/10'
-                    }`}
-                  >
-                    {em}
-                  </button>
-                ))}
-              </div>
-              <div className="flex gap-2">
+            {/* Pessoas vinculadas */}
+            {pessoasVinculadas.map((p) => {
+              const ativo = pessoaId === p.id;
+              return (
                 <button
+                  key={p.id}
                   type="button"
-                  onClick={salvar}
-                  disabled={salvandoRotulo}
-                  className="flex-1 py-2 px-4 rounded-xl text-xs font-bold text-hawk-bg bg-hawk-pink hover:bg-hawk-pink/90 transition-colors disabled:opacity-50"
+                  onClick={() => onSelectPessoa(p)}
+                  className={`px-4 py-2 rounded-xl text-sm font-bold border transition-all duration-200 flex items-center gap-1.5 ${
+                    ativo
+                      ? 'border-hawk-pink bg-hawk-pink/10 text-hawk-pink'
+                      : 'border-glass-border bg-hawk-input text-hawk-muted hover:text-hawk-text'
+                  }`}
                 >
-                  {salvandoRotulo ? 'Salvando...' : 'Salvar'}
+                  <span>{p.emoji}</span> {p.nome}
                 </button>
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); setEditando(false); }}
-                  className="py-2 px-4 rounded-xl text-xs font-bold text-hawk-text bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          )}
+              );
+            })}
+          </div>
+          <p className="text-[11px] text-hawk-dim">
+            Gerencie as pessoas em <span className="font-semibold text-hawk-muted">⚙️ Configurações → Pessoas Vinculadas</span>.
+          </p>
         </div>
       )}
     </div>
